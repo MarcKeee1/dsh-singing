@@ -7,7 +7,7 @@
 ```powershell
 npm test
 python -m pip install -r requirements-test.txt
-python tests/test_backend.py
+python -m unittest discover -s tests -p "test_*.py"
 npm run check:release
 npm pack --ignore-scripts --pack-destination ../artifacts
 ```
@@ -21,7 +21,7 @@ Python 后端需另外运行 `scripts/setup.py`。运行健康检查后，使用
 1. 在 GitHub 建立空仓库，将源码目录作为仓库根目录。
 2. 先运行发布检查，再提交代码。检查将拒绝私人路径、凭据特征、音频和模型文件。
 3. 填写自己的仓库 URL 后再添加 remote、push；此模板没有预设任何人的账号。
-4. 发布版本标签 `v0.2.0`，在 Release 上传 `.tgz` 和 SHA-256 校验值。
+4. 发布版本标签 `v0.2.1`，在 Release 上传 `.tgz` 和 SHA-256 校验值。
 
 本地检查不能替代人工审阅新增文件，尤其不要上传运行数据、配置中的凭据或参考音频。
 
