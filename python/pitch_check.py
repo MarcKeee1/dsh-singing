@@ -14,9 +14,10 @@ sys.path.insert(0,str(VENDOR))
 from modules.rmvpe import RMVPE
 
 
-def compare_pitch(source, converted):
+def compare_pitch(source, converted, expected_shift=0):
+    if expected_shift not in (0,12):raise ValueError('Unsupported expected register shift')
     size = min(len(source), len(converted))
-    source, converted = np.asarray(source[:size]), np.asarray(converted[:size])
+    source, converted = np.asarray(source[:size])*2**(expected_shift/12), np.asarray(converted[:size])
     source_voiced = source > 50
     paired = source_voiced & (converted > 50)
     if paired.sum() < 20:
@@ -33,13 +34,14 @@ def compare_pitch(source, converted):
         'withinHalfSemitone': round(float(np.mean(absolute <= 50)), 4),
         'withinOneSemitone': round(float(np.mean(absolute <= 100)), 4),
         'octaveFolding': False,
+        'expectedShiftSemitones':expected_shift,
         'passed': median <= 50 and p90 <= 150 and coverage >= 0.75,
         'note': 'Relative to extracted source F0, not a guarantee of perfect notes or timbre quality.',
     }
     return result
 
 
-def check(source_path, converted_path):
+def check(source_path, converted_path, expected_shift=0):
     torch.set_num_threads(4)
     model = RMVPE(str(MODELS / 'lj1995--VoiceConversionWebUI/rmvpe.pt'), is_half=False, device='cpu')
     source, _ = librosa.load(source_path, sr=16000)
@@ -52,7 +54,7 @@ def check(source_path, converted_path):
         return np.concatenate(parts)
     source_f0 = extract(source)
     converted_f0 = extract(converted)
-    result = compare_pitch(source_f0, converted_f0)
+    result = compare_pitch(source_f0, converted_f0,expected_shift)
     result['sourceSeconds'] = round(len(source) / 16000, 4)
     result['convertedSeconds'] = round(len(converted) / 16000, 4)
     result['durationDifferenceMs'] = round(abs(len(source) - len(converted)) / 16, 2)
@@ -67,7 +69,8 @@ if __name__ == '__main__':
     parser.add_argument('--source', required=True)
     parser.add_argument('--converted', required=True)
     parser.add_argument('--out', required=True)
+    parser.add_argument('--expected-shift',type=int,choices=[0,12],default=0)
     args = parser.parse_args()
-    result = check(args.source, args.converted)
+    result = check(args.source, args.converted,args.expected_shift)
     pathlib.Path(args.out).write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
     print(json.dumps(result, ensure_ascii=False), flush=True)
