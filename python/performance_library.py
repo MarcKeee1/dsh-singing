@@ -45,7 +45,9 @@ def find_performance(root, request, signature):
     title, artist = key(request.get('title', '')), artist_key(request.get('artist', ''))
     if not title:
         return None
+    from selection import mode_of
     duration = request.get('duration')
+    if duration is None:duration={'excerpt':45,'long':90}.get(mode_of(request))
     hint = key(request.get('chorus_hint') or '')
     source_url = str(request.get('source_url') or '')
     directory = root / 'performance-cache'
@@ -80,7 +82,11 @@ def find_performance(root, request, signature):
             if duration is not None:
                 # A request with a known duration can end at an earlier lyric
                 # boundary. Without that provenance require the actual length.
-                exact_request = previous.get('duration') is not None and abs(float(previous['duration']) - float(duration)) < .001
+                previous_duration=previous.get('duration')
+                if previous_duration is None:
+                    previous_duration={'excerpt':45}.get(mode_of(previous))
+                    if mode_of(previous)=='long':previous_duration=(source.get('selection') or {}).get('softTargetSeconds')
+                exact_request = previous_duration is not None and abs(float(previous_duration) - float(duration)) < .001
                 if not exact_request and abs(seconds - float(duration)) > .5:
                     continue
                 if seconds > float(duration) + .5:
@@ -135,7 +141,8 @@ def find_full_performance(root,request,signature):
         try:
             record=json.loads(file.read_text(encoding='utf-8'));source=record.get('sourceInfo') or {}
             if record.get('voiceSignature')!=signature or not record.get('quality',{}).get('passed') or not source.get('sourceComplete'):continue
-            if key(source.get('song',''))!=key(request.get('title','')) or artist_key(source.get('artist',''))!=artist_key(request.get('artist','')):continue
+            if key(source.get('song',''))!=key(request.get('title','')):continue
+            if request.get('artist') and artist_key(source.get('artist',''))!=artist_key(request['artist']):continue
             if local_hash and source.get('songId')!=local_hash:continue
             if not local_hash and source.get('sourceProvider')=='local':continue
             if request.get('source_url') and request['source_url']!=(record.get('requestSpec') or {}).get('source_url'):continue
