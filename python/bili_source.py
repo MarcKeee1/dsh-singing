@@ -10,6 +10,7 @@ import urllib.parse
 import urllib.request
 from song_identity import plain, name_key, canonical_artist
 from song_position import position_spec, bounds, locate_position
+from source_choice import SourceChoiceRequired
 
 class BiliSourceError(ValueError):
     pass
@@ -136,23 +137,38 @@ def candidates(song, artist, source_url, fetch):
     if result.get('code') != 0:raise BiliSourceError('B站搜索暂时不可用，请稍后再试')
     ranked=[]
     for video in (result.get('data') or {}).get('result') or []:
-        score=title_score(video.get('title',''),song,artist)
+        score=title_score(video.get('title',''),song,artist) if artist else automatic_score(video,song,artist)
         bvid=video.get('bvid','')
         seconds=duration_seconds(video.get('duration',0))
-        if score and math.isfinite(seconds) and seconds >= 90 and re.fullmatch(r'BV[0-9A-Za-z]{10}',bvid):
+        if math.isfinite(seconds) and seconds >= 5 and re.fullmatch(r'BV[0-9A-Za-z]{10}',bvid):
             ranked.append((score,int(video.get('play',0) or 0),bvid))
     return list(dict.fromkeys(item[2] for item in sorted(ranked,reverse=True)))[:3]
+
+def automatic_score(info,song,artist):
+    title=plain(info.get('title',''));description=plain(info.get('desc',''))
+    if BAD_VERSION.search(title):return 0
+    if artist:
+        score=title_score(title,song,artist)
+        if score:return score
+        aliases=[canonical_artist(artist)]
+        if canonical_artist(artist)=='周杰伦':aliases.append('Jay Chou')
+        # Credits can be in the description rather than the upload title.
+        if name_key(song) in name_key(title+' '+description) and any(name_key(a) in name_key(description) for a in aliases):return 1
+        return 0
+    if name_key(song) not in name_key(title+' '+description):return 0
+    return 2 if re.search(r'原唱|官方|录音室|Official\s*Audio|专辑音源',title+' '+description,re.I) else 0
 
 def resolve_bili(song, artist, duration=None, hint='', source_url='', *, root, fetch, ffmpeg, run=subprocess.run, start_seconds=None, lyric_occurrence=1, full=False):
     spec=position_spec(start_seconds,hint,lyric_occurrence)
     song,artist=plain(song),canonical_artist(artist)
-    if not song or not artist:
-        raise BiliSourceError('独立查找B站原曲需要歌名和歌手，请补充歌手；没有改用同名翻唱')
+    if not source_url and not song:
+        raise BiliSourceError('请提供歌名或具体视频链接；歌手可以省略')
     requested=float(duration) if duration is not None else 45.0
     if not math.isfinite(requested) or requested < 5:raise BiliSourceError('片段时长至少5秒')
     choices=candidates(song,artist,source_url,fetch)
     if not choices:raise BiliSourceError(f'B站没有找到歌名、歌手和版本都符合的《{song}》音源')
     cache=root/'song-cache';cache.mkdir(exist_ok=True)
+    alternatives=[]
     for bvid in choices:
         view=public_json(fetch,'https://api.bilibili.com/x/web-interface/view?'+urllib.parse.urlencode({'bvid':bvid}))
         if view.get('code') != 0:
@@ -161,13 +177,18 @@ def resolve_bili(song, artist, duration=None, hint='', source_url='', *, root, f
         info=view.get('data') or {}
         total=duration_seconds(info.get('duration',0))
         if source_url:
-            if not explicit_title_matches(info.get('title',''),song,artist):
-                raise BiliSourceError('指定视频的标题与歌名或歌手/版本不匹配；在版本校验阶段停止，尚未请求音轨。这不表示 B站禁止下载，也不要改换歌手重试')
+            # A user-picked video is the version selection. Generic upload
+            # titles and missing performer credits must not veto that choice.
+            song=song or plain(info.get('title','')) or '指定视频音轨'
+            artist=artist or '视频指定版本'
             if not math.isfinite(total) or total<5 or len(info.get('pages') or [])>1:
                 raise BiliSourceError('指定视频需为至少5秒的单曲音源；尚未请求音轨，不是下载权限问题')
-        elif not title_score(info.get('title',''),song,artist) or not math.isfinite(total) or total<90 or len(info.get('pages') or [])>1:continue
+        elif not math.isfinite(total) or total<5 or len(info.get('pages') or [])>1:continue
         if any((info.get('rights') or {}).get(key) for key in ('pay','ugc_pay','arc_pay')):
             if source_url:raise BiliSourceError('指定视频标记为付费内容，当前公开取音频方式不支持；没有绕过播放权限')
+            continue
+        if not source_url and not automatic_score(info,song,artist):
+            alternatives.append({'title':plain(info.get('title',''))[:160],'source_url':'https://www.bilibili.com/video/'+bvid,'version':'其他版本或歌手未确认'})
             continue
         cid=info.get('cid')
         if not isinstance(cid,int) or cid<=0:continue
@@ -205,15 +226,16 @@ def resolve_bili(song, artist, duration=None, hint='', source_url='', *, root, f
             partial.unlink(missing_ok=True)
             raise BiliSourceError('B站已返回播放地址，但音频读取或解码失败；不是没有音频流，本次没有改用其他歌手')
         partial.replace(audio)
-        record={'source':str(audio),'song':song,'artist':artist,'songId':f'bili:{bvid}:{cid}',
+        record={'source':str(audio),'song':song,'artist':artist or '视频未标注歌手','songId':f'bili:{bvid}:{cid}',
             'sourcePage':f'https://www.bilibili.com/video/{bvid}','sourceAuthor':(info.get('owner') or {}).get('name',''),
-            'sourceTitle':info.get('title',''),'sourceProvider':'bilibili','sourceMatch':'explicit_url_song_and_version' if source_url else 'title_artist_version_metadata',
+            'sourceTitle':info.get('title',''),'sourceProvider':'bilibili','sourceMatch':'user_selected_video' if source_url else 'title_artist_version_metadata',
             'chorusStartSeconds':start,'sourceStartSeconds':start,'seconds':seconds,'timelineAligned':False,
             'chorusMethod':'bilibili_independent_vocal_excerpt','sha256':hashlib.sha256(audio.read_bytes()).hexdigest()}
         record.update(sourceTotalSeconds=total,sourceComplete=full)
         if spec:record.update({'positionRequest':spec,'alignment':alignment,'timelineAligned':True,'sourceTimeline':'selected_source','chorusMethod':'requested_'+spec['mode']})
         record_path.write_text(json.dumps(record,ensure_ascii=False,indent=2),encoding='utf-8')
         return record
+    if alternatives:raise SourceChoiceRequired(alternatives)
     raise BiliSourceError(f'找到了B站候选，但没有可正常读取、版本相符的{artist}《{song}》音轨')
 
 
