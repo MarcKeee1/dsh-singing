@@ -1,4 +1,4 @@
-# dsh-singing 0.2.0
+# dsh-singing 0.2.1
 
 [简体中文](README.md) · [Changelog](CHANGELOG.md) · [Downloads](https://github.com/MarcKeee1/dsh-singing/releases/latest)
 
@@ -6,10 +6,13 @@ A standalone local singing plugin for DeepSeek Harness. Request a song by title 
 
 The plugin contains no persona, private conversations, QQ account, API credentials, or preset character voice. It performs voice conversion along the source recording's melody; it does not read lyrics through speech synthesis.
 
-## What's new in 0.2.0
+## What's new in 0.2.1
 
 - A separate `dsh-singing` plugin; installing it does not replace the OneBot QQ package.
-- Full songs, choruses and selected starting positions, with the previous 90-second ceiling removed.
+- Openings, choruses, opening through the first complete chorus, longer excerpts, full songs, and selected starting positions. Ordinary requests default to **45 seconds**; “a bit longer” defaults to **90 seconds**, without transcribing the entire song first. Full conversion is reserved for explicit full-song requests; explicit durations remain available.
+- The artist is optional. Prefer the original recording, inspect descriptions when titles omit artist names, and request confirmation before using an unconfirmed or different version.
+- If a new source is unavailable, offer the verified cached playlist. Selecting an entry plays its existing audio without synthesis. Successful playback asks the model to stop without extra song or old-voice announcements.
+- When low notes dominate and a full octave shift better matches the reference register, conversion may shift up 12 semitones. Pitch QA accounts for this shift; it does not guarantee identical speaking and singing timbre.
 - Starting at a timestamp or lyric without specifying duration sings to the end. An unspecified singing mode still defaults to an ordinary excerpt of about 45 seconds.
 - Once a complete performance is cached, cut later excerpts from its unedited vocal master without separating or converting it again. Timestamp requests use the original source timeline even when the playback mix has shortened instrumental gaps.
 - Source lookup order: **Bilibili → NetEase Music → QQ Music**. An explicitly supplied link keeps the requested version. Bilibili BV links and `b23.tv` shares are supported.
@@ -74,11 +77,11 @@ Run the health check, adapting the Python path for a custom data directory:
 
 ### 3. Install the DSH plugin
 
-Download `dsh-singing-0.2.0.tgz` from [Releases](https://github.com/MarcKeee1/dsh-singing/releases/latest), or build it:
+Download `dsh-singing-0.2.1.tgz` from [Releases](https://github.com/MarcKeee1/dsh-singing/releases/latest), or build it:
 
 ```powershell
 npm pack --ignore-scripts
-dsh plugin --profile <your-profile> add ./dsh-singing-0.2.0.tgz
+dsh plugin --profile <your-profile> add ./dsh-singing-0.2.1.tgz
 ```
 
 Replace `<your-profile>` with your CLI profile. The desktop application's `desktop` profile is managed by Electron: use its local plugin installation interface instead of forcing CLI changes to that profile.
@@ -102,7 +105,7 @@ The previous public release packaged singing inside a replacement `dsh-onebot-qq
 
 If your current QQ package already registers `sing_song`, disable that old singing entry before enabling this plugin, or set this plugin's `toolName` to `sing_song_local`. Do not overwrite your customized OneBot package just to install singing. Existing audio caches from the old integration are not automatically migrated; keep the old data until you have verified the new installation.
 
-The delivered standalone source originally identified itself as 0.1.0. It is published here as **0.2.0** to follow this repository's existing tag. The old `v0.1.0` tag and downloads remain available.
+The delivered standalone source originally identified itself as 0.1.0. It is published here as **0.2.1** to follow this repository's existing tag. The old `v0.1.0` tag and downloads remain available.
 
 ## Usage
 
@@ -208,3 +211,7 @@ Publication regression checks passed **15 Node.js tests and 21 Python tests**. T
 Code is GPL-3.0-only; third-party notices and model-specific terms remain applicable. Models are not bundled. See [LICENSE](LICENSE), [NOTICE](NOTICE) and [third-party notes](docs/third-party.md).
 
 Maintained by MarcKeee1, with implementation and publication assistance from Codex.
+
+## Optional Bilibili sign-in
+
+Use the backend environment to run `scripts/bilibili-login.py --data-dir <your-backend-data-directory>`. Scan the QR code in your own Bilibili app. Credentials remain in the local `.auth` directory and are never included in model messages, QQ messages, or the repository. Authentication is used only for Bilibili API requests, not audio CDNs or unrelated sites. Sign-in does not bypass CAPTCHAs or access restrictions; failures require user action. The window can remove the saved sign-in state.
