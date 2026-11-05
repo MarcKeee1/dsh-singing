@@ -1,0 +1,78 @@
+diff --git a/hf_utils.py b/hf_utils.py
+index 4bd88fa..5df72fe 100644
+--- a/hf_utils.py
++++ b/hf_utils.py
+@@ -3,10 +3,23 @@ from huggingface_hub import hf_hub_download
+ 
+ 
+ def load_custom_model_from_hf(repo_id, model_filename="pytorch_model.bin", config_filename=None):
++    local_root = os.environ.get("DSH_SINGING_MODELS")
++    if local_root:
++        from pathlib import Path
++        root = Path(local_root) / repo_id.replace("/", "--")
++        model_path = root / model_filename
++        if not model_path.is_file():
++            raise FileNotFoundError(f"Local singing model missing: {model_path.name}")
++        if config_filename is None:
++            return str(model_path)
++        config_path = root / config_filename
++        if not config_path.is_file():
++            raise FileNotFoundError(f"Local singing config missing: {config_path.name}")
++        return str(model_path), str(config_path)
+     os.makedirs("./checkpoints", exist_ok=True)
+     model_path = hf_hub_download(repo_id=repo_id, filename=model_filename, cache_dir="./checkpoints")
+     if config_filename is None:
+         return model_path
+     config_path = hf_hub_download(repo_id=repo_id, filename=config_filename, cache_dir="./checkpoints")
+ 
+-    return model_path, config_path
+\ No newline at end of file
++    return model_path, config_path
+diff --git a/inference.py b/inference.py
+index 84d673b..2c1686f 100644
+--- a/inference.py
++++ b/inference.py
+@@ -61,7 +61,7 @@ def load_models(args):
+         f0_extractor = RMVPE(model_path, is_half=False, device=device)
+         f0_fn = f0_extractor.infer_from_audio
+ 
+-    config = yaml.safe_load(open(dit_config_path, "r"))
++    config = yaml.safe_load(open(dit_config_path, "r", encoding="utf-8"))
+     model_params = recursive_munch(config["model_params"])
+     model_params.dit_type = 'DiT'
+     model = build_model(model_params, stage="DiT")
+@@ -80,7 +80,7 @@ def load_models(args):
+     for key in model:
+         model[key].eval()
+         model[key].to(device)
+-    model.cfm.estimator.setup_caches(max_batch_size=1, max_seq_length=8192)
++    model.cfm.estimator.setup_caches(max_batch_size=1, max_seq_length=int(os.environ.get('DSH_SINGING_MAX_SEQUENCE', '8192')))
+ 
+     # Load additional modules
+     from modules.campplus.DTDNN import CAMPPlus
+@@ -271,7 +271,7 @@ def main(args):
+ 
+     sr = 22050 if not f0_condition else 44100
+     hop_length = 256 if not f0_condition else 512
+-    max_context_window = sr // hop_length * 30
++    max_context_window = sr // hop_length * int(os.environ.get('DSH_SINGING_CONTEXT_SECONDS', '30'))
+     overlap_frame_len = 16
+     overlap_wave_len = overlap_frame_len * hop_length
+ 
+diff --git a/modules/commons.py b/modules/commons.py
+index 4af3fec..e14873a 100644
+--- a/modules/commons.py
++++ b/modules/commons.py
+@@ -451,7 +451,11 @@ def load_checkpoint(
+                     f"Warning: Skipped loading some keys due to shape mismatch: {skipped_keys}"
+                 )
+             print("%s loaded" % key)
+-            model[key].load_state_dict(filtered_state_dict, strict=False)
++            loaded = model[key].load_state_dict(filtered_state_dict, strict=False)
++            learned = dict(model[key].named_parameters())
++            missing_parameters = [name for name in loaded.missing_keys if name in learned]
++            if missing_parameters:
++                raise RuntimeError('Required singing model weights missing: ' + ', '.join(missing_parameters[:12]))
+     _ = [model[key].eval() for key in model]
+ 
+     if not load_only_params:
