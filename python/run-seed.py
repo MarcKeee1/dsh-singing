@@ -12,6 +12,7 @@ parser.add_argument('--source', required=True)
 parser.add_argument('--target', required=True)
 parser.add_argument('--outdir', required=True)
 parser.add_argument('--steps', default=40, type=int)
+parser.add_argument('--pitch-shift', default=0, type=int, choices=[0,12])
 args = parser.parse_args()
 for item in [args.source, args.target]:
     if not pathlib.Path(item).is_file():
@@ -31,7 +32,7 @@ sys.argv = [
     '--target', str(pathlib.Path(args.target).resolve()), '--output', str(pathlib.Path(args.outdir).resolve()),
     '--checkpoint', str(MODELS / 'Plachta--Seed-VC/DiT_seed_v2_uvit_whisper_base_f0_44k_bigvgan_pruned_ft_ema_v2.pth'),
     '--config', str(ROOT / 'singing-local.yml'), '--f0-condition', 'True', '--auto-f0-adjust', 'False',
-    '--semi-tone-shift', '0', '--length-adjust', '1.0', '--diffusion-steps', str(args.steps),
+    '--semi-tone-shift', str(args.pitch_shift), '--length-adjust', '1.0', '--diffusion-steps', str(args.steps),
     '--inference-cfg-rate', '0.7', '--fp16', str(torch.cuda.is_available()),
 ]
 runpy.run_path(str(VENDOR / 'inference.py'), run_name='__main__')
