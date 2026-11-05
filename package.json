@@ -1,0 +1,11 @@
+{
+  "name": "dsh-singing-local",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local AI singing for DeepSeek Harness / DeepSeek Harness 本地 AI 翻唱",
+  "license": "GPL-3.0-only",
+  "repository": {"type":"git","url":"git+https://github.com/MarcKeee1/dsh-singing.git"},
+  "scripts": {"test":"node scripts/test-adapters.mjs"},
+  "engines": {"node":">=22"}
+}
