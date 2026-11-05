@@ -6,10 +6,10 @@ from song_identity import name_key
 
 def mode_of(request):
     mode=request.get('mode') or ('from' if request_position(request) else 'excerpt')
-    if mode not in {'full','chorus','from','excerpt'}:raise PositionError('无效唱歌模式')
+    if mode not in {'full','chorus','from','excerpt','opening','opening_to_chorus','long'}:raise PositionError('无效唱歌模式')
     position=request_position(request)
     if mode=='full' and (position or request.get('duration') is not None):raise PositionError('整首模式不同时指定起点或片段时长')
-    if mode=='chorus' and position:raise PositionError('只唱副歌与指定起点请选择一种')
+    if mode in {'chorus','opening','opening_to_chorus'} and position:raise PositionError('结构选段与指定起点请选择一种')
     if mode=='from' and not position:raise PositionError('请给起点秒数或起唱歌词')
     duration=request.get('duration')
     if duration is not None and (isinstance(duration,bool) or not math.isfinite(float(duration)) or float(duration)<5):raise PositionError('时长至少5秒')
@@ -50,16 +50,46 @@ def select_range(request,source,total,metadata,*,root,ffmpeg):
         start,alignment=locate_position(position,str(source),'',metadata['songId'],total,root=root,ffmpeg=ffmpeg)
         start,stop=bounds(start,total,duration)
         return start,stop,{'method':'requested_'+position['mode'],'alignment':alignment,'positionRequest':position}
-    if mode=='chorus':
+    if mode=='long':
+        # A longer casual excerpt must not require transcribing the entire song.
+        starts=sorted(float(stamp) for stamp,text in (metadata.get('lyricLines') or [])
+                      if name_key(text) and 0<=float(stamp)<total)
+        start=starts[0] if starts else min(60,total*.25,max(0,total-5))
+        target=min(total,start+(float(duration) if duration is not None else 90))
+        # Prefer a nearby lyric boundary, without expanding into another chorus.
+        endings=[x for x in starts[1:]+[total] if max(start+5,target-10)<=x<=target]
+        stop=max(endings) if endings and duration is None else target
+        start,stop=bounds(start,total,stop-start)
+        return start,stop,{'method':'long_section','selectionConfidence':'lyric_timeline' if starts else 'excerpt',
+                           'softTargetSeconds':90,'fullTranscriptionRequired':False}
+    if mode in {'chorus','opening','opening_to_chorus'}:
         lines=metadata.get('lyricLines') or []
+        words=[]
         if lines:
             from resolve_song import choose_chorus,chorus_end
-            start,_=choose_chorus(lines,total);stop=chorus_end(lines,start,total)
+            starts=sorted(float(stamp) for stamp,text in lines if name_key(text) and 0<=float(stamp)<total)
+            if not starts:raise PositionError('没有可用的起唱时间')
+            first=starts[0];endings=starts[1:]+[total]
+            def chorus():
+                a,_=choose_chorus(lines,total);return a,chorus_end(lines,a,total)
         else:
             words=transcript(str(source),'',metadata['songId'],total,root=root,ffmpeg=ffmpeg)
-            start,stop=repeated_chorus(words,total)
+            words=sorted((w for w in words if name_key(w.get('text','')) and 0<=float(w.get('start',0))<float(w.get('end',0))<=total+1),key=lambda w:float(w['start']))
+            if not words:raise PositionError('没有可用的起唱时间')
+            first=max(0,float(words[0]['start'])-.12)
+            endings=[min(total,float(w['end'])+.15) for i,w in enumerate(words) if i==len(words)-1 or float(words[i+1]['start'])-float(w['end'])>=.35 or any(c in w['text'] for c in '。！？.!?')]
+            if not endings:endings=[total]
+            def chorus():return repeated_chorus(words,total)
+        if mode in {'chorus','opening_to_chorus'}:
+            a,b=chorus();start=a if mode=='chorus' else first;stop=b
+        elif mode=='opening':
+            start=first
+            try:a,b=chorus();stop=a if a-first>=5 else next((x for x in endings if x>=first+25),total)
+            except ValueError:stop=next((x for x in endings if x>=first+30),total)
         if duration is not None:stop=min(stop,start+float(duration))
-        return start,stop,{'method':'repeated_section','selectionConfidence':'repeated_lyrics'}
+        start,stop=bounds(start,total,stop-start)
+        method={'chorus':'repeated_section','opening':'opening_section','opening_to_chorus':'opening_through_first_chorus'}[mode]
+        return start,stop,{'method':method,'selectionConfidence':'repeated_lyrics' if mode in {'chorus','opening_to_chorus'} else 'lyric_timeline','softTargetSeconds':None}
     start=min(60,total*.25,max(0,total-5))
     start,stop=bounds(start,total,duration if duration is not None else 45)
     return start,stop,{'method':'vocal_excerpt'}

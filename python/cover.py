@@ -31,9 +31,19 @@ from runtime import ROOT, MODELS, VENDOR, CODE_DIR, CONFIG, FFMPEG, MEDIA, requi
 
 def main(request, cache_only=False):
     started = time.monotonic()
+    if request.get('catalog') is True:
+        from cache_catalog import catalog
+        try:catalog_signature=voice_signature()[0]
+        except (OSError,ValueError,KeyError):catalog_signature=None
+        return catalog(ROOT,catalog_signature,request.get('catalogOffset',0),request.get('catalogMaxBytes',20*1024*1024))
     output = pathlib.Path(request['output']).resolve()
     if MEDIA.resolve() not in output.parents or output.suffix.lower() != '.mp3':
         raise ValueError('Output must be an MP3 inside configured outputDir')
+    if request.get('cache_id'):
+        from cache_catalog import materialize
+        try:catalog_signature=voice_signature()[0]
+        except (OSError,ValueError,KeyError):catalog_signature=None
+        return materialize(ROOT,request['cache_id'],output,catalog_signature,request.get('catalogMaxBytes',20*1024*1024))
     ROOT.mkdir(parents=True,exist_ok=True)
     position=request_position(request)
     signature, settings = voice_signature()
@@ -146,12 +156,14 @@ def main(request, cache_only=False):
             free = urllib.request.Request(CONFIG['comfyUrl']+'/free',
                 data=b'{"unload_models":true,"free_memory":true}',headers={'Content-Type':'application/json'})
             with urllib.request.urlopen(free,timeout=15) as response:response.read()
+    run([sys.executable,str(CODE_DIR/'pitch_register.py'),'--source',str(vocals),'--reference',str(reference),'--out',str(job/'register.json')],max(180,duration*2))
+    register=json.loads((job/'register.json').read_text());pitch_shift=register['semitones']
     run([sys.executable, str(CODE_DIR / 'run-seed.py'), '--source', str(vocals), '--target', str(reference),
-         '--outdir', str(job / 'converted'), '--steps', '40'], max(1200,duration*30))
+         '--outdir', str(job / 'converted'), '--steps', '40','--pitch-shift',str(pitch_shift)], max(1200,duration*30))
     made = list((job / 'converted').glob('*.wav'))
     if len(made) != 1:
         raise RuntimeError('Expected exactly one converted singing track')
-    run([sys.executable, str(CODE_DIR / 'pitch_check.py'), '--source', str(vocals), '--converted', str(made[0]), '--out', str(job / 'pitch.json')], max(300,duration*5))
+    run([sys.executable, str(CODE_DIR / 'pitch_check.py'), '--source', str(vocals), '--converted', str(made[0]), '--out', str(job / 'pitch.json'),'--expected-shift',str(pitch_shift)], max(300,duration*5))
     quality = json.loads((job / 'pitch.json').read_text(encoding='utf-8'))
     if quality.get('voicedFrames', 0) < max(200, int(info.duration * 100 * .15)):
         raise ValueError('这段可辨认的歌声太少，本次没有发送')
@@ -176,7 +188,7 @@ def main(request, cache_only=False):
     result = {'ok': True, 'path': str(output), 'song': str(request.get('title', ''))[:160],
               'seconds': round(len(mixed)/sr, 2), 'quality': quality, 'voiceSignature': signature,
               'gapEditVersion': GAP_VERSION, 'gapEdits': gap_edits, 'mixVersion': MIX_VERSION, 'mixSettings': mix_settings,
-              'voiceSettings': settings, 'elapsedSeconds': round(time.monotonic() - started, 2),
+              'voiceSettings': settings, 'pitchRegister':register,'elapsedSeconds': round(time.monotonic() - started, 2),
               'job': str(job), 'sentToQQ': False, 'sourceStemsReused':reusable is not None}
     result.update({'masterSha256':master_hash,'normalizedSha256':hashlib.sha256(normalized.read_bytes()).hexdigest(),'vocalSha256':hashlib.sha256(vocals.read_bytes()).hexdigest(),'sourceInfo': resolved, 'cacheHit': False, 'requestSpec': request_spec(request), 'audioSha256': hashlib.sha256(output.read_bytes()).hexdigest()})
     (job / 'result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
@@ -211,6 +223,8 @@ if __name__ == '__main__':
         elif 'diagnostic log:' in detail:
             detail = '本地歌声处理失败，本次没有发送'
         result = {'ok': False, 'error': detail}
+        from source_choice import SourceChoiceRequired
+        if isinstance(error,SourceChoiceRequired):result.update(needsConfirmation=True,alternatives=error.options,note='先自然询问用户是否接受其中一个其他或歌手未注明的版本；未同意前不下载、不演唱，不自己选歌手。用户明确选择后再传对应 source_url。')
         request_path = pathlib.Path(args.request).resolve()
         if request_path.parent == (ROOT / 'requests').resolve():
             request_path.with_suffix('.result.json').write_text(json.dumps(

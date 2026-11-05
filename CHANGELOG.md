@@ -1,5 +1,13 @@
 # 更新记录 / Changelog
 
+## 0.2.1 — Shorter defaults and current backend / 短片段默认值与后端同步
+
+- 普通点歌默认 45 秒，“长一点”默认 90 秒；不先转写整首，也不把长片段延长到完整副歌。 / Default excerpts are 45 seconds and longer excerpts 90 seconds, without whole-song transcription or automatic chorus extension.
+- 新增开头、开头到副歌；保留明确的完整版和指定起点。 / Add opening and opening-through-chorus modes, retaining explicit full songs and start positions.
+- 同步缓存歌单、可选 B 站扫码登录、歌手可省略及其他版本先确认。 / Sync cached playlists, optional Bilibili sign-in, optional artists and confirmation for alternative versions.
+- 同步参考音色、低音占多数时的自动八度判断和音准校验；旧缓存依旧校验音色、版本与音频哈希。 / Sync reference-voice conversion, conditional octave selection and pitch QA while retaining cache integrity checks.
+- 24 项 Node.js 和 44 项 Python 测试通过；真实 DSH SDK 的本地集成检查使用模拟发送。 / Passed 24 Node.js and 44 Python tests; local real-SDK integration used mock delivery.
+
 ## 0.2.0 — Standalone singing plugin / 独立翻唱插件
 
 - 独立 `dsh-singing` 包，通过已有 `qq_send_voice` 发送；安装不替换 OneBot。 / A standalone package that delivers through the existing voice tool without replacing OneBot.

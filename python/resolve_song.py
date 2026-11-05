@@ -16,6 +16,7 @@ from bili_source import resolve_bili, BiliSourceError, public_audio_url
 from song_position import PositionError, position_spec, bounds, locate_position
 
 from runtime import ROOT, FFMPEG
+from source_choice import SourceChoiceRequired
 HEADERS = {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.bilibili.com/'}
 KNOWN = {'493735012': {'bvid': 'BV1bb4y147UC', 'chorusHint': '如果云层'},
          '64625': {'mvId': 58923, 'mvOffset': 1.70}}
@@ -32,7 +33,9 @@ def get_json(url, form=None):
     if urllib.parse.urlparse(url).hostname == 'music.163.com':
         headers['Referer'] = 'https://music.163.com/'
     request = urllib.request.Request(url, data=data, headers=headers)
-    with urllib.request.urlopen(request, timeout=20) as response:
+    from bili_session import open_request
+    opener=open_request(ROOT,request) if urllib.parse.urlparse(url).hostname=='api.bilibili.com' else urllib.request.urlopen(request,timeout=20)
+    with opener as response:
         return json.load(response)
 
 
@@ -154,7 +157,7 @@ def download_full(info,song,artist):
     if abs(actual-total)>max(2,total*.01):
         partial.unlink(missing_ok=True);raise ValueError('实际音轨不完整，未把试听片段当作整首')
     partial.replace(path)
-    return {**{k:v for k,v in info.items() if k not in {'url','referer','domains'}},'song':song,'artist':artist,
+    return {**{k:v for k,v in info.items() if k not in {'url','referer','domains'}},'song':song or info.get('song',''),'artist':artist or info.get('artist',''),
         'source':str(path),'sourceStartSeconds':0,'seconds':actual,'sourceTotalSeconds':actual,'sourceComplete':True,
         'sha256':hashlib.sha256(path.read_bytes()).hexdigest()}
 
@@ -169,7 +172,8 @@ def resolve_netease(song,artist,source_url=''):
         tracks=(search.get('result') or {}).get('songs') or []
     for track in tracks:
         artists=track.get('artists') or track.get('ar') or []
-        if not title_matches(track.get('name',''),song) or not any(artist_matches(a.get('name',''),artist) for a in artists):continue
+        if not source_url and (not title_matches(track.get('name',''),song) or (artist and not any(artist_matches(a.get('name',''),artist) for a in artists))):continue
+        if track.get('originCoverType')==2:continue
         total=float(track.get('duration') or track.get('dt') or 0)/1000
         if total<5:continue
         play=get_json('https://music.163.com/api/song/enhance/player/url',{'ids':json.dumps([track['id']]),'br':128000})
@@ -179,7 +183,7 @@ def resolve_netease(song,artist,source_url=''):
         return download_full({'url':row['url'],'total':total,'songId':'netease:'+str(track['id']),
             'sourcePage':'https://music.163.com/song?id='+str(track['id']),'sourceProvider':'netease',
             'referer':'https://music.163.com/','domains':['.music.126.net','.vod.126.net'],
-            'lyricLines':timed_lines((lyrics.get('lrc') or {}).get('lyric',''))},song,artist)
+            'lyricLines':timed_lines((lyrics.get('lrc') or {}).get('lyric',''))},song or track.get('name',''),artist or ' / '.join(a.get('name','') for a in artists))
     raise ValueError('网易云未找到版本相符、可公开完整播放的音轨')
 
 
@@ -198,15 +202,17 @@ def resolve_uncached(song,artist,source_url='',providers=None):
         names={'www.bilibili.com':'bilibili','bilibili.com':'bilibili','b23.tv':'bilibili','music.163.com':'netease','y.qq.com':'qqmusic'}
         if p.scheme!='https' or p.username or p.password or p.port not in (None,443) or p.hostname not in names:raise ValueError('原曲链接需来自支持的平台 HTTPS 单曲页')
         order=(names[p.hostname],)
-    attempts=[]
+    attempts=[];alternatives=[]
     for provider in order:
         try:
             record=providers[provider]()
             return {**record,'sourceAttempts':attempts+[{'provider':provider,'status':'selected'}]}
         except (OSError,ValueError,KeyError,TypeError) as error:
+            if isinstance(error,SourceChoiceRequired):alternatives.extend(error.options)
             status='access_denied' if isinstance(error,urllib.error.HTTPError) and error.code in {401,403,412,429} else 'unavailable'
             attempts.append({'provider':provider,'status':status,'reason':str(error)[:180]})
             if source_url:raise ValueError(provider+' 指定音源失败：'+str(error)) from error
+    if alternatives:raise SourceChoiceRequired(alternatives)
     raise ValueError('音源平台均没有可用结果：'+'；'.join(x['provider']+': '+x['reason'] for x in attempts))
 
 

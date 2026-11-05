@@ -19,7 +19,11 @@ async function fixture(t,delivery='auto'){
 }
 const args={song:'A song',artist:'Selected performer'};
 test('full song and from-position requests have no 90-second ceiling',()=>{
+  assert.equal(validate(args).duration,45);
+  assert.equal(validate({...args,mode:'long'}).duration,90);
+  assert.equal(validate({...args,mode:'long',duration_seconds:65}).duration,65);
   assert.equal(validate({...args,mode:'full'}).mode,'full');
+  assert.equal(validate({...args,mode:'full'}).duration,null);
   assert.equal(validate({...args,duration_seconds:400}).duration,400);
   assert.equal(validate({...args,start_seconds:80}).mode,'from');
   assert.equal(validate({...args,start_seconds:80}).duration,null);

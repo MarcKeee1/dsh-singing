@@ -30,7 +30,7 @@ def resolve_qqmusic(song,artist,source_url=''):
         data=qq_api('music.search.SearchCgiService','DoSearchForQQMusicDesktop',{'query':f'{artist} {song}','search_type':0,'num_per_page':20,'page_num':1})
         tracks=(data.get('body',{}).get('song',{}).get('list') or [])
     for track in tracks:
-        if name_key(track.get('title',''))!=name_key(song) or not any(artist_key(x.get('name',''))==artist_key(artist) for x in track.get('singer',[])):continue
+        if not source_url and (name_key(track.get('title',''))!=name_key(song) or (artist and not any(artist_key(x.get('name',''))==artist_key(artist) for x in track.get('singer',[])))):continue
         # Only anonymous full playback. A preview/premium flag is not an invitation to try other formats.
         if any((track.get('pay') or {}).get(k) for k in ('pay_play','pay_month','pay_status')):continue
         mid=track.get('mid');media=(track.get('file') or {}).get('media_mid')
@@ -41,5 +41,6 @@ def resolve_qqmusic(song,artist,source_url=''):
         if row.get('is_preview') or row.get('freeTrialInfo'):continue
         return {'url':urllib.parse.urljoin('https://dl.stream.qqmusic.qq.com/',row['purl']),
             'total':float(track['interval']),'songId':'qq:'+mid,'sourcePage':'https://y.qq.com/n/ryqq/songDetail/'+mid,
+            'song':track.get('title',song),'artist':artist or ' / '.join(x.get('name','') for x in track.get('singer',[])),
             'sourceProvider':'qqmusic','referer':'https://y.qq.com/','domains':['.qqmusic.qq.com']}
     raise ValueError('QQ音乐没有返回版本相符、可公开完整播放的音轨')
