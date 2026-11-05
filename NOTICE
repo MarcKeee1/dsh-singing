@@ -1,0 +1,18 @@
+dsh-singing
+
+The project is distributed under GPL-3.0-only. See LICENSE.
+
+Seed-VC: https://github.com/Plachtaa/seed-vc
+The files in vendor-overrides/seed-vc are modified upstream source files.
+They retain the upstream GPL-3.0 licensing; the complete license is provided
+in licenses/Seed-VC-GPL-3.0.txt. The pinned upstream archive is fetched during
+installation, not redistributed as bundled model weights.
+
+The initial QQ integration and local GPU queue were developed alongside
+dsh-onebot. Copyright (c) 2026, dsh-external contributors.
+Its BSD-3-Clause notice is preserved in licenses/OneBot-BSD-3-Clause.txt.
+The standalone plugin uses the existing qq_send_voice tool through the DSH
+tool registry and does not ship the complete OneBot plugin.
+
+Model files, Python libraries and user-provided audio retain their respective
+licenses and rights. See docs/third-party.md and models.lock.json.

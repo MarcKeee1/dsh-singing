@@ -1,180 +1,210 @@
-# DSH Singing · Local AI Covers
+# dsh-singing 0.2.0
 
-**Let DeepSeek Harness sing in QQ: find the source recording, preserve its melody, convert the voice, and send the result back to the current conversation.**
+[简体中文](README.md) · [Changelog](CHANGELOG.md) · [Downloads](https://github.com/MarcKeee1/dsh-singing/releases/latest)
 
-[简体中文](README.md) · [Configuration](docs/CONFIGURATION.md) · [Changelog](CHANGELOG.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
+A standalone local singing plugin for DeepSeek Harness. Request a song by title and performer, or provide a Bilibili link, and sing it using a reference voice you configure. Choose the whole song, its chorus, a timestamp, or an opening lyric.
 
-This repository packages a deployed singing backend and its QQ integration. Demucs separates the vocals, Seed-VC converts the voice, RMVPE checks pitch, and OneBot 11 / NapCat delivers the audio. It performs singing voice conversion from an existing recording; it neither reads lyrics through TTS nor composes a song from scratch.
+The plugin contains no persona, private conversations, QQ account, API credentials, or preset character voice. It performs voice conversion along the source recording's melody; it does not read lyrics through speech synthesis.
 
-## Features
+## What's new in 0.2.0
 
-- **QQ song requests:** a shared `sing_song` tool for private and group conversations, routed to the current session.
-- **Start from a timestamp or lyric:** select a position on the actual source recording, including a specific occurrence of a repeated lyric.
-- **Natural excerpts:** use timestamped lyrics where available; fall back to a passage containing vocals when a chorus cannot be established. Excerpts are usually 30–60 seconds, with a 90-second maximum.
-- **Source identity checks:** retain the requested title, original artist and version constraints. Support publicly playable sources, Bilibili BV links, and local audio imported by an administrator.
-- **Finished recording cache:** reuse a matching song, voice and excerpt; distinguish changes to position, duration, source or voice.
-- **Melody and key preservation:** no automatic transposition; check pitch, timing and voiced coverage after conversion.
-- **Mixing and instrumental gaps:** conservatively shorten long instrumental breaks, retain breaths and short pauses, raise vocal presence and limit peaks.
-- **Send-time verification:** recheck the current session, output path and quality status. Do not automatically resend when delivery is uncertain.
-- **Shared GPU scheduling:** use the same queue symbol as the local image module. Finished cache hits bypass that queue.
-
-## Repository layout
-
-```text
-cover.py / resolve_song.py       Pipeline and source resolution
-song_position.py                Timestamp/lyric positioning and alignment cache
-performance_library.py          Finished recording cache
-instrumental_gaps.py             Instrumental gap editing
-singing_mix.py / pitch_check.py  Mixing and pitch checks
-integrations/dsh-onebot-qq/      Replacement QQ package with singing support
-patches/seed-vc-offline.patch    Local-loading patch for a pinned Seed-VC revision
-models.lock.json                Model origins, revisions and SHA-256 checksums
-scripts/ / tests/               Setup and offline regression tests
-```
-
-Songs, reference voices, model weights, credentials, chat history and runtime caches are excluded. Personal deployment paths have been replaced with configurable paths in this publication copy. Setup does not automatically modify an existing production profile.
+- A separate `dsh-singing` plugin; installing it does not replace the OneBot QQ package.
+- Full songs, choruses and selected starting positions, with the previous 90-second ceiling removed.
+- Starting at a timestamp or lyric without specifying duration sings to the end. An unspecified singing mode still defaults to an ordinary excerpt of about 45 seconds.
+- Once a complete performance is cached, cut later excerpts from its unedited vocal master without separating or converting it again. Timestamp requests use the original source timeline even when the playback mix has shortened instrumental gaps.
+- Source lookup order: **Bilibili → NetEase Music → QQ Music**. An explicitly supplied link keeps the requested version. Bilibili BV links and `b23.tv` shares are supported.
+- Prefer official audio, lyric videos, studio and audio-focused sources before MVs. Source titles do not guarantee clean vocals, and samples, backing vocals or separation artifacts can remain.
+- Deliver to the current QQ conversation through the existing `qq_send_voice` tool, or generate a local MP3 for desktop use.
 
 ## Requirements
 
-The current target is **Windows with an NVIDIA CUDA GPU**. The original deployment used Python 3.11, PyTorch 2.4.1 / CUDA 12.1 and Node.js 22 or later. Linux/macOS are unverified; the code includes Windows process and path handling.
+- DSH 0.2.1 or later stable 0.2.x releases; the supplied validation specifically used **0.2.1-rc.5**. Other prerelease versions require a compatibility check.
+- **Python 3.11**, FFmpeg, and Node.js 22+ for packaging/tests.
+- Primarily validated on **Windows + NVIDIA CUDA**. CPU installation is available for compatibility and diagnostics but can be much slower. Linux/macOS have not completed full singing acceptance tests.
+- Approximately 2.6 GB of pinned models, plus Python/PyTorch and caches. Reserve at least 15 GB.
+- QQ delivery needs an existing OneBot plugin, a connected NapCat, and a `qq_send_voice` tool available in the calling session.
 
-You also need Git, FFmpeg, DeepSeek Harness, a working OneBot 11 / NapCat connection, and a clear voice reference you are authorized to use. There is no fixed VRAM guarantee. First-time generation is substantially slower than reusing a finished recording.
-
-**This is a backend plus QQ integration package.** It is not a one-click standalone plugin that installs every model and GPU dependency. The QQ package contains distributed JavaScript and declarations, rather than the upstream TypeScript development tree.
+The validated PyTorch combination is 2.4.1 / CUDA 12.1. See the [PyTorch version instructions](https://pytorch.org/get-started/previous-versions/) and [Seed-VC](https://github.com/Plachtaa/seed-vc).
 
 ## Installation
 
-Run the following in PowerShell. The example checkout location can be changed.
+### 1. Prepare the local backend
 
-### 1. Get the code and create a Python environment
-
-```powershell
-git clone https://github.com/MarcKeee1/dsh-singing.git "$HOME\.dsh\singing"
-Set-Location "$HOME\.dsh\singing"
-py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install torch==2.4.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu121
-.\.venv\Scripts\python.exe -m pip install -r requirements-lock.txt
-```
-
-The lock file is the full dependency snapshot from the original environment, including CUDA-tagged PyTorch. Install the CUDA wheels above first. A different platform or driver may require a matching PyTorch distribution.
-
-### 2. Download and verify models
+Extract or clone this repository and run the following from its root. Verify that `ffmpeg -version` works first.
 
 ```powershell
-.\.venv\Scripts\python.exe download-models.py
-.\.venv\Scripts\python.exe scripts\prepare-runtime.py --warm-demucs
+git clone https://github.com/MarcKeee1/dsh-singing.git
+Set-Location dsh-singing
+py -3.11 scripts/setup.py
 ```
 
-The downloader verifies the pinned revisions and SHA-256 checksums in `models.lock.json` for Seed-VC, RMVPE, CAMPPlus, Whisper including its tokenizer, and BigVGAN. Setup obtains the pinned Seed-VC source, applies the local-loading patch and writes `singing-local.yml`. `--warm-demucs` downloads Demucs in advance. Preparation needs the network; conversion and lyric recognition for local audio use local models afterward.
+Setup creates a separate environment under `~/.dsh/singing`, downloads pinned models and Seed-VC, and checks SHA-256 hashes. It does not change an existing DSH profile or replace OneBot. The plugin does not download models when DSH starts.
 
-### 3. Configure paths and a reference voice
-
-Replace the FFmpeg and reference paths below. A clear, single-speaker voice sample of about eight seconds without background music is recommended.
+If FFmpeg is not on PATH:
 
 ```powershell
-$env:DSH_SINGING_ROOT = (Get-Location).Path
-$env:DSH_FFMPEG = 'C:\Tools\ffmpeg\bin\ffmpeg.exe'
-$env:DSH_SINGING_REFERENCE = 'C:\Audio\my-reference.wav'
-$env:DSH_QQ_WORKSPACE = 'C:\Workspaces\qq'
+py -3.11 scripts/setup.py --ffmpeg "D:/Tools/ffmpeg/bin/ffmpeg.exe"
 ```
 
-These variables affect only the current PowerShell process and its children. **The DSH host must inherit the same configuration.** Launch it from that environment, or save user environment variables and fully exit/restart DSH:
+For a custom data directory or CPU PyTorch:
 
 ```powershell
-foreach ($name in @('DSH_SINGING_ROOT','DSH_FFMPEG','DSH_SINGING_REFERENCE','DSH_QQ_WORKSPACE')) {
-    [Environment]::SetEnvironmentVariable($name, (Get-Item "Env:$name").Value, 'User')
-}
+py -3.11 scripts/setup.py --data-dir "D:/AI/dsh-singing" --torch cpu
 ```
 
-`DSH_QQ_WORKSPACE` must match the workspace bound to the QQ connection. Set `DSH_HOME` when using a custom DSH data directory. `.env.example` is a reference and is not automatically loaded.
+After an interrupted download, fix connectivity and run setup again. Successfully verified files are reused. Setup retains certificate verification and does not bypass download permissions.
 
-If you already have a compatible local TTS bridge, leave `DSH_SINGING_REFERENCE` unset and use `DSH_TTS_*` / `DSH_VOICE_CONFIG` instead. The required interface is documented in [Configuration](docs/CONFIGURATION.md). A static reference does not require a TTS account.
+### 2. Configure your reference voice
 
-### 4. Install the QQ integration
+Provide a clear recording you are authorized to use, preferably 10–20 seconds with little background music. Edit `backend.json` in the data directory:
 
-From the repository root:
+```json
+{"referenceAudio":"D:/Audio/my-reference.wav"}
+```
+
+This shows only the field to change: **retain the other fields written by setup**. Installation can finish without a voice reference, but the health check will report that singing is not ready. Reference recordings must be decodable and 3–120 seconds long.
+
+The singing voice follows this file. Update it when changing voices. No MiniMax or other paid TTS account is required, and the plugin does not read credentials from an existing speech service.
+
+Run the health check, adapting the Python path for a custom data directory:
 
 ```powershell
-npm pack ./integrations/dsh-onebot-qq
+& "$env:USERPROFILE/.dsh/singing/.venv/Scripts/python.exe" scripts/doctor.py --full
 ```
 
-Without npm, run `.\.venv\Scripts\python.exe scripts\pack.py` to build a tarball with the same package layout.
+### 3. Install the DSH plugin
 
-This creates `dsh-onebot-qq-0.9.10-singing.8-public.1.tgz`. Install it through your DSH version's existing local plugin workflow as an **upgrade of the same `dsh-onebot-qq` package**. Retain the existing OneBot connection, administrators and workspace configuration, then restart DSH.
+Download `dsh-singing-0.2.0.tgz` from [Releases](https://github.com/MarcKeee1/dsh-singing/releases/latest), or build it:
 
-Do not mount a second QQ plugin instance or install the repository root as a regular npm plugin. Local package installation controls vary between DSH versions; this project does not automatically edit the host profile. If QQ is not already configured, first establish a working OneBot/NapCat channel.
+```powershell
+npm pack --ignore-scripts
+dsh plugin --profile <your-profile> add ./dsh-singing-0.2.0.tgz
+```
+
+Replace `<your-profile>` with your CLI profile. The desktop application's `desktop` profile is managed by Electron: use its local plugin installation interface instead of forcing CLI changes to that profile.
+
+Restart DSH. Default backend paths match setup. For a custom installation, configure the existing plugin entry:
+
+```yaml
+- id: dsh-singing
+  config:
+    dataDir: D:/AI/dsh-singing
+    configFile: D:/AI/dsh-singing/backend.json
+    pythonPath: D:/AI/dsh-singing/.venv/Scripts/python.exe
+    delivery: auto
+```
+
+Do not insert a second copy. Installing only the `.tgz` is insufficient: Python, models and a reference voice must also be prepared.
+
+## Upgrading from the old 0.1.0 repository release
+
+The previous public release packaged singing inside a replacement `dsh-onebot-qq` package. This release is a **standalone plugin** and does not require replacing your QQ plugin.
+
+If your current QQ package already registers `sing_song`, disable that old singing entry before enabling this plugin, or set this plugin's `toolName` to `sing_song_local`. Do not overwrite your customized OneBot package just to install singing. Existing audio caches from the old integration are not automatically migrated; keep the old data until you have verified the new installation.
+
+The delivered standalone source originally identified itself as 0.1.0. It is published here as **0.2.0** to follow this repository's existing tag. The old `v0.1.0` tag and downloads remain available.
 
 ## Usage
 
-Ask in a private or group QQ conversation attached to the configured workspace. Requests can be phrased naturally, for example:
-
-| Goal | Example |
+| Request | Example |
 | --- | --- |
-| Request a song | `Sing a passage from Ren Ran's “无人之岛”.` |
-| Start at a timestamp | `Sing Jay Chou's “搁浅”, starting at 1 minute 20 seconds.` |
-| Start at the beginning | `This time, start at 0 seconds.` |
-| Start from a lyric | `Start from “<complete lyric phrase>”.` Use at least four meaningful characters. |
-| Repeated lyric | `Start from the second occurrence of that line.` |
-| Short excerpt | `Only sing 15 seconds.` |
-| Specific version | `Use this BV version and start at 80 seconds: <full URL>.` |
-| Local recording | An administrator supplies an accessible local audio path and selects an excerpt. |
+| Full song | “Sing all of Ren Ran's 无人之岛.” |
+| Chorus | “Only sing the chorus this time.” |
+| Default excerpt | “Sing a passage from 无人之岛 by Ren Ran.” |
+| Specific source | “Use this Bilibili card and keep this version.” |
+| Timestamp | “Start at 1 minute 20 seconds and sing for 45 seconds.” |
+| Lyric occurrence | “Start at this lyric: <at least four meaningful characters>, using its second occurrence.” |
 
-Timestamps refer to the selected source's timeline **before editing**. An MV and an album recording may have different timelines. Lyric positioning transcribes the actual audio locally; the first request can take longer. Unclear or incorrectly quoted lyrics may not match reliably; use a timestamp when necessary.
+A starting position without duration sings to the end. `full` mode must not also specify a start or excerpt duration. Lyric positioning uses local Whisper and can be slower on the first request. A chorus must be located reliably; a generic passage is not silently labeled as a chorus.
 
-### `sing_song` parameters
+### Tool parameters
 
-| Parameter | Required | Meaning |
-| --- | --- | --- |
-| `song` | Yes | Exact title, up to 160 characters |
-| `artist` | Yes | Original artist, up to 80 characters; never silently omitted or replaced |
-| `start_seconds` | No | 0–7200; `0` explicitly starts at the beginning; omission selects automatically |
-| `chorus_hint` | No | User-provided opening lyric, at least four meaningful characters and at most 120; mutually exclusive with timestamp |
-| `lyric_occurrence` | No | Integer 1–10, only with an opening lyric |
-| `duration_seconds` | No | 5–90 seconds when explicitly requested; otherwise automatic |
-| `source_url` | No | Full Bilibili BV video URL |
-| `source_path` | No | Administrator-provided local audio within allowed media roots |
-
-Example tool call:
+| Parameter | Meaning |
+| --- | --- |
+| `song`, `artist` | Required accurate song title and selected performer/version |
+| `mode` | `full`: whole song; `chorus`: reliable chorus; `from`: given start; `excerpt`: ordinary passage |
+| `source_url` | User-selected BV/b23.tv, NetEase single or QQ Music single URL |
+| `source_path` | Administrator-approved local audio within `allowedSourceRoots` |
+| `duration_seconds` | Optional duration of at least five seconds; no 90-second ceiling; omit for `full` |
+| `start_seconds` | Start on the unedited source timeline; mutually exclusive with opening lyrics |
+| `chorus_hint` | User-supplied opening lyric, at least four meaningful characters |
+| `lyric_occurrence` | Occurrence of that lyric, default 1, maximum 10 |
 
 ```json
-{"song":"搁浅","artist":"周杰伦","start_seconds":80,"duration_seconds":30}
+{"song":"无人之岛","artist":"任然","mode":"full"}
 ```
 
-Group members can request songs. Importing local files requires administrator status. The current integration also limits private conversations to administrators configured in the QQ plugin; group delivery follows the current group's session mapping.
+```json
+{"song":"无人之岛","artist":"任然","mode":"from","start_seconds":80}
+```
 
-## Caching and troubleshooting
+### QQ and desktop delivery
 
-Finished recordings, source audio and lyric alignments live in `performance-cache/`, `song-cache/` and `alignment-cache/`. Cache entries match the request and voice signature and validate the audio hash. Changing a static reference file changes its voice signature.
+- `delivery: auto` uses the existing `qq_send_voice` tool in a QQ session and returns a file in a desktop session.
+- `delivery: file` generates a local MP3 only.
+- `delivery: qq` requires an eligible QQ conversation.
 
-| Symptom | Check first |
+QQ delivery supplies only the generated file path and uses the normal DSH tool execution and permission checks. The same request is sent once per turn. Uncertain delivery is not automatically retried; inspect the conversation first.
+
+The default output directory is `DSH_HOME/media/onebot/voice`, or `~/.dsh/media/onebot/voice` without `DSH_HOME`. For another OneBot media root, set `outputDir` to that allowed directory rather than granting access to an entire drive.
+
+## Configuration
+
+Plugin settings find the backend and choose delivery:
+
+| Setting | Purpose/default |
 | --- | --- |
-| `sing_song` is unavailable | Integration package installed, DSH restarted, and QQ workspace path matches |
-| No playable source | Exact title, artist and version; try a full BV link or administrator-provided local audio |
-| Lyric matching fails | Use a longer accurate phrase, select its occurrence, or supply a timestamp |
-| First generation is slow | Model setup, GPU workload and local lyric recognition; finished hits are faster |
-| Missing model or FFmpeg | `DSH_SINGING_ROOT`, `DSH_FFMPEG` and setup completion |
-| Wrong voice | Reference audio or local TTS configuration; voice changes separate cache entries |
-| Pitch check fails | Select a clearer vocal passage; inspect `jobs/<id>/worker.log` and `pitch.json` locally |
-| Generated but not delivered | OneBot connection, current session mapping, media roots and file size limits |
+| `dataDir` | `DSH_HOME/singing` or `~/.dsh/singing` |
+| `configFile` | `backend.json` in that directory |
+| `pythonPath` | Backend environment's Python |
+| `delivery` | `auto`, `file`, or `qq` |
+| `toolName` | `sing_song`; use `sing_song_local` to avoid an existing registration |
+| `timeoutMs` | 0 means no plugin-wide generation timer; host limits still apply |
 
-Request results are written to `requests/*.result.json`; stage diagnostics stay in `jobs/<id>/`. Read local diagnostics first. Do not attach a complete runtime directory containing credentials or private content to an issue.
+Backend settings in `backend.json` resolve relative paths against that file's directory:
 
-Public source availability changes. A request can still fail when no normally playable source is available. Automatic pitch checks compare technical measurements with the original track; they do not guarantee quality or voice similarity for every song. Use sources, reference voices and generated recordings within your authorization.
+| Field | Purpose |
+| --- | --- |
+| `dataDir`, `modelsDir`, `vendorDir` | Runtime data, verified models and pinned/patched Seed-VC |
+| `referenceAudio`, `outputDir` | Your voice reference and allowed MP3 output directory |
+| `ffmpeg` | Executable path or command on PATH |
+| `allowedSourceRoots` | Local audio import roots; empty by default; supported files up to 100 MB |
+| `comfyUrl` | Optional local ComfyUI URL; disabled by default |
+| `unloadComfy` | Allow idle Comfy models to unload; false by default |
 
-## Tests and version
+The GPU queue uses `Symbol.for('dsh.localGpuQueue.v1')` in the same DSH process. Backend file locks also protect one data directory from simultaneous conversions. An optional Comfy check refuses to interrupt active image work; unloading requires explicitly enabling `unloadComfy`.
+
+## Troubleshooting and limits
+
+| Symptom | What to check |
+| --- | --- |
+| Python/backend missing | Run setup and make all three plugin paths refer to one installation |
+| Voice reference not ready | Configure a decodable 3–120 second `referenceAudio` |
+| CUDA unavailable | Driver and PyTorch installation; CPU is available but much slower |
+| No usable source | Exact title/performer/version, a source link, or approved local audio |
+| Missing `qq_send_voice` | Enable the existing OneBot voice tool or use `delivery: file` |
+| Output path rejected | Point `outputDir` at a media root already allowed by OneBot |
+| Duplicate singing tool | Disable the legacy entry or change `toolName` |
+| Pitch/voiced-coverage check failed | Try a clearer passage containing actual singing; failed output is withheld |
+| Modified Seed-VC directory | Back it up and move it aside before reinstalling; setup avoids overwriting edits |
+
+Diagnostics remain in local `jobs/` and `requests/` directories; do not publish runtime data, source recordings or voice references. More Chinese detail is available in [configuration](docs/configuration.md), [validation](docs/validation.md) and [third-party notices](docs/third-party.md).
+
+Source availability varies. QQ Music has offline protocol tests, but the delivery's online search did not obtain an eligible track, so complete online acceptance for that provider is not claimed. No access-denial, paid-content or preview restrictions are bypassed. Merged Bilibili multi-segment streams and automatic selection from multi-part collections are not supported.
+
+Automatic pitch checks compare against the extracted source; they do not guarantee perfect pitch, voice similarity or removal of all backing/sample voices. Full-song processing time grows with duration and remains cancellable. Network/stage timeouts, host limits, and QQ voice/file-size limits still apply.
+
+## Tests and licensing
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -p 'test_*.py' -v
 npm test
+python -m pip install -r requirements-test.txt
+python tests/test_backend.py
+npm run check:release
 ```
 
-Tests cover source identity, timestamp/lyric positioning, cache discrimination, gaps, mixing, routing and rejected parameters. QQ delivery is stubbed; tests send no messages to real people or groups. Automated checks do not replace full GPU synthesis and QQ acceptance on a new machine.
+Publication regression checks passed **15 Node.js tests and 21 Python tests**. The delivery also records an isolated DSH SDK installation and a 104-second synthetic/private long-track conversion; those are supplied validation records, not new commercial-song or real-QQ acceptance runs performed during publication.
 
-This publication derives from the locally deployed `0.9.10-singing.8` integration; the public QQ package is `0.9.10-singing.8-public.1`. Publication changes add configurable paths, a direct reference-audio mode, pinned model downloads and setup documentation. Compatibility with untested future DSH/OneBot releases is not promised.
+Code is GPL-3.0-only; third-party notices and model-specific terms remain applicable. Models are not bundled. See [LICENSE](LICENSE), [NOTICE](NOTICE) and [third-party notes](docs/third-party.md).
 
-## License and acknowledgements
-
-The repository is published under GPL-3.0. The QQ integration retains its upstream BSD-3-Clause notice. Thanks to [Seed-VC](https://github.com/Plachtaa/seed-vc), [DSH OneBot QQ](https://github.com/mario841859784/dsh-onebot), Demucs, RMVPE, Whisper, CAMPPlus and BigVGAN. Models retain their own terms; see [Third-party notices](THIRD_PARTY_NOTICES.md).
-
-Maintained by **MarcKeee1**, with implementation and publication preparation assisted by **Codex**.
+Maintained by MarcKeee1, with implementation and publication assistance from Codex.

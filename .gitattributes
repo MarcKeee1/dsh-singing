@@ -1,2 +1,2 @@
 * text=auto eol=lf
-*.patch -text
+*.ps1 text eol=crlf

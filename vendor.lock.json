@@ -1,0 +1,23 @@
+{
+  "repository": "https://github.com/Plachtaa/seed-vc",
+  "revision": "51383efd921027683c89e5348211d93ff12ac2a8",
+  "url": "https://codeload.github.com/Plachtaa/seed-vc/zip/51383efd921027683c89e5348211d93ff12ac2a8",
+  "overrides": [
+    {
+      "path": "hf_utils.py",
+      "originalSha256": "e189160f5381092936c122bd84de570276772e0aaf4f0004ee57f7366a8be6cc",
+      "patchedSha256": "0894a2c881dd360b0a0ed36ac2098ff793ddcae774335d40e91f02e738236055"
+    },
+    {
+      "path": "inference.py",
+      "originalSha256": "58f97976804a8eb8bb4d33e73beeab792f86a5ab2ca83c1319a23da1e71e80a6",
+      "patchedSha256": "8fb63565ea10c3a7ee544f243cf6a5c9753c87769496889d21e7b57afe1a9811"
+    },
+    {
+      "path": "modules/commons.py",
+      "originalSha256": "09d1cf334fc7cc9fa62773a184bc2125093241c25a8c1fcb45cbb90f57d8cf2c",
+      "patchedSha256": "5786e8c84833cabe7bff2e3d968a930f82aa20b0ff91c0fb9cf7e8d8a8a4005d"
+    }
+  ],
+  "sha256": "72a27a1d20efec1489041eac2854e3e1c9c23d650ac15900821ad3ab367f0290"
+}

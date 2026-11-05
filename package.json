@@ -1,11 +1,63 @@
 {
-  "name": "dsh-singing-local",
-  "version": "0.1.0",
-  "private": true,
+  "name": "dsh-singing",
+  "version": "0.2.0",
+  "description": "Local singing voice conversion for DeepSeek Harness, with song lookup, excerpt positioning and optional OneBot delivery",
   "type": "module",
-  "description": "Local AI singing for DeepSeek Harness / DeepSeek Harness 本地 AI 翻唱",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
   "license": "GPL-3.0-only",
-  "repository": {"type":"git","url":"git+https://github.com/MarcKeee1/dsh-singing.git"},
-  "scripts": {"test":"node scripts/test-adapters.mjs"},
-  "engines": {"node":">=22"}
+  "keywords": [
+    "dsh-plugin",
+    "singing",
+    "seed-vc",
+    "onebot"
+  ],
+  "engines": {
+    "node": ">=22",
+    "dsh": ">=0.2.1-0 <0.3.0-0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.2.1-0 <0.3.0-0",
+    "@deepseek-ai/schemastery": ">=3.18.0 <4"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "files": [
+    "lib",
+    "python/*.py",
+    "scripts/*.py",
+    "scripts/*.ps1",
+    "models.lock.json",
+    "vendor.lock.json",
+    "vendor-overrides",
+    "requirements.txt",
+    "constraints.txt",
+    "backend.example.json",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "licenses",
+    "docs",
+    "README.en.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check:release": "node scripts/check-release.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MarcKeee1/dsh-singing.git"
+  },
+  "homepage": "https://github.com/MarcKeee1/dsh-singing",
+  "bugs": {
+    "url": "https://github.com/MarcKeee1/dsh-singing/issues"
+  }
 }

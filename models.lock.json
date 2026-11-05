@@ -134,5 +134,13 @@
     "sha256": "9715fd2243b6f06a5858b5e32950d2853f73dd5bc201aafcf76f5082a2d8acd1",
     "bytes": 34604,
     "url": "https://huggingface.co/openai/whisper-small/resolve/973afd24965f72e36ca33b3055d56a652f456b4d/added_tokens.json"
+  },
+  {
+    "repo": "demucs",
+    "filename": "955717e8-8726e21a.th",
+    "relativePath": "torch/hub/checkpoints/955717e8-8726e21a.th",
+    "sha256": "8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4",
+    "bytes": 84141911,
+    "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th"
   }
 ]

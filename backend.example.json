@@ -1,0 +1,11 @@
+{
+  "dataDir": ".",
+  "modelsDir": "models",
+  "vendorDir": "vendor/seed-vc",
+  "outputDir": "output",
+  "referenceAudio": "voice/reference.wav",
+  "ffmpeg": "ffmpeg",
+  "allowedSourceRoots": [],
+  "comfyUrl": "",
+  "unloadComfy": false
+}
