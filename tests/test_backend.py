@@ -1,0 +1,108 @@
+import sys,pathlib,tempfile,os,json,unittest,types,urllib.error,hashlib
+from unittest.mock import patch
+PROJECT=pathlib.Path(__file__).resolve().parents[1]
+temp=tempfile.TemporaryDirectory();root=pathlib.Path(temp.name)
+(root/'backend.json').write_text(json.dumps({'dataDir':str(root),'ffmpeg':sys.executable,'allowedSourceRoots':[str(root/'imports')]}))
+os.environ['DSH_SINGING_CONFIG']=str(root/'backend.json');sys.path.insert(0,str(PROJECT/'python'))
+import bili_source as b,song_position as p,performance_library as library,runtime
+import selection,resolve_song,public_providers
+
+class BackendTests(unittest.TestCase):
+ def test_explicit_named_cover_is_not_an_automatic_original_match(self):
+  title='「雨爱 (司凤版)」';self.assertEqual(b.title_score(title,'雨爱','司凤'),0);self.assertTrue(b.explicit_title_matches(title,'雨爱','司凤'));self.assertFalse(b.explicit_title_matches(title,'雨爱','其他歌手'))
+ def test_fake_song_prefix_is_rejected(self):
+  self.assertFalse(b.explicit_title_matches('歌手《晴天娃娃》','晴天','歌手'))
+ def test_clean_audio_ranked_before_story_mv(self):
+  self.assertGreater(b.title_score('Artist《Test》Official Audio','Test','Artist'),b.title_score('Artist《Test》官方 MV','Test','Artist'))
+  self.assertEqual(b.title_score('Artist《Test》官方MV剧情版对白','Test','Artist'),0)
+ def test_short_link_stays_on_bilibili(self):
+  import urllib.request
+  for url in ['https://127.0.0.1/video/BV1ozH56tEGb','https://example.com/video/BV1ozH56tEGb','http://www.bilibili.com/video/BV1ozH56tEGb']:
+   with self.assertRaises(b.BiliSourceError):b._BiliShortRedirects().redirect_request(urllib.request.Request('https://b23.tv/fixture'),None,302,'Found',{},url)
+ def test_combined_audio_video_format(self):
+  url='https://audio.bilivideo.com/fixture';self.assertEqual(b.public_audio_url(lambda _:{'code':0,'data':{'durl':[{'url':url}]}},'BV1ozH56tEGb',1),url)
+ def test_access_denials_do_not_trigger_bypass(self):
+  fetch=unittest.mock.Mock(side_effect=urllib.error.HTTPError('https://api.bilibili.com',403,'denied',{},None))
+  with self.assertRaises(b.BiliSourceError):b.public_audio_url(fetch,'BV1ozH56tEGb',1)
+  self.assertEqual(fetch.call_count,1)
+ def test_preview_rejected(self):
+  with self.assertRaises(b.BiliSourceError):b.public_audio_url(lambda _:{'code':0,'data':{'is_preview':True}},'BV1ozH56tEGb',1)
+ def test_local_source_roots(self):
+  (root/'imports').mkdir(exist_ok=True);good=root/'imports/test.wav';good.write_bytes(b'test');self.assertEqual(runtime.require_source(good),good)
+  bad=root/'private.wav';bad.write_bytes(b'test')
+  with self.assertRaises(ValueError):runtime.require_source(bad)
+ def test_position_zero_and_mutual_exclusion(self):
+  self.assertIsNone(p.position_spec());self.assertEqual(p.position_spec(0)['startSeconds'],0)
+  with self.assertRaises(p.PositionError):p.position_spec(0,'至少四个字')
+ def test_lyric_exact_occurrence(self):
+  words=[{'text':'你看见了','start':1,'end':2},{'text':'你看见了','start':10,'end':11}]
+  self.assertEqual(p.match_words(words,'你看见了',2)['matchedStartSeconds'],10)
+  with self.assertRaises(p.PositionError):p.match_words(words,'不存在的句子')
+ def test_time_near_end(self):
+  self.assertEqual(p.bounds(10,20,45),(10,20))
+  with self.assertRaises(p.PositionError):p.bounds(19,20,45)
+ def test_no_ninety_second_limit(self):
+  self.assertEqual(p.bounds(20,400,None),(20,400))
+  self.assertEqual(p.bounds(0,400,300),(0,300))
+  self.assertEqual(selection.mode_of({'mode':'full'}),'full')
+  with self.assertRaises(ValueError):selection.mode_of({'mode':'full','duration':45})
+ def test_full_and_from_selections(self):
+  args={'source':'unused','total':300,'metadata':{'songId':'fixture'},'root':root,'ffmpeg':'unused'}
+  self.assertEqual(selection.select_range({'mode':'full'},**args)[:2],(0,300))
+  self.assertEqual(selection.select_range({'mode':'from','start':80,'positionVersion':1},**args)[:2],(80,300))
+ def test_repeated_chorus_reliable_or_failure(self):
+  phrase='这一段足够长的测试文字重复时用来确认范围不能随意截主歌'
+  words=[{'text':c,'start':start+i,'end':start+i+.8} for start in (40,100) for i,c in enumerate(phrase)]
+  a,z=selection.repeated_chorus(words,180);self.assertAlmostEqual(a,39.88);self.assertGreater(z-a,20)
+  with self.assertRaises(ValueError):selection.repeated_chorus(words[:len(phrase)],180)
+ def test_provider_order_and_stop(self):
+  called=[]
+  def provider(name,ok=False):
+   def call():
+    called.append(name)
+    if ok:return {'sourceProvider':name}
+    raise ValueError('unavailable')
+   return call
+  providers={n:provider(n,n=='netease') for n in resolve_song.PROVIDER_ORDER}
+  self.assertEqual(resolve_song.resolve_uncached('Test','Artist',providers=providers)['sourceProvider'],'netease')
+  self.assertEqual(called,['bilibili','netease'])
+ def test_denied_provider_not_retried(self):
+  denied=unittest.mock.Mock(side_effect=urllib.error.HTTPError('https://api.bilibili.com',403,'denied',{},None))
+  result=resolve_song.resolve_uncached('Test','Artist',providers={'bilibili':denied,'netease':lambda:{'sourceProvider':'netease'}})
+  self.assertEqual(denied.call_count,1);self.assertEqual(result['sourceAttempts'][0]['status'],'access_denied')
+ def test_explicit_url_never_changes_provider(self):
+  called=[]
+  def fail():called.append('bili');raise ValueError('denied')
+  with self.assertRaises(ValueError):resolve_song.resolve_uncached('Test','Artist','https://www.bilibili.com/video/BV1ozH56tEGb',providers={'bilibili':fail})
+  self.assertEqual(called,['bili'])
+ def test_qqmusic_public_playback_and_paid_rejection(self):
+  track={'title':'Test','singer':[{'name':'Artist'}],'mid':'fixture','file':{'media_mid':'media'},'interval':200,'pay':{'pay_play':0}}
+  lookup={'body':{'song':{'list':[track]}}}
+  with patch('public_providers.qq_api',side_effect=[lookup,{'midurlinfo':[{'songmid':'fixture','purl':'M500media.mp3'}]}]) as api:
+   result=public_providers.resolve_qqmusic('Test','Artist');self.assertEqual(result['total'],200);self.assertEqual(api.call_count,2)
+  track['pay']['pay_play']=1
+  with patch('public_providers.qq_api',return_value=lookup) as api:
+   with self.assertRaises(ValueError):public_providers.resolve_qqmusic('Test','Artist')
+   self.assertEqual(api.call_count,1)
+ def test_full_cache_rejects_wrong_voice_version_and_corruption(self):
+  directory=root/'performance-cache';directory.mkdir(exist_ok=True)
+  cache=directory/('a'*64+'.json');master=cache.with_suffix('.master.wav');master.write_bytes(b'master fixture')
+  job=root/'jobs/11111111-1111-1111-1111-111111111111';job.mkdir(parents=True,exist_ok=True)
+  original=job/'source.wav';original.write_bytes(b'original');vocal=job/'separated/htdemucs/source/vocals.wav';vocal.parent.mkdir(parents=True,exist_ok=True);vocal.write_bytes(b'voice')
+  sha=lambda f:hashlib.sha256(f.read_bytes()).hexdigest()
+  value={'voiceSignature':'test','quality':{'passed':True},'sourceInfo':{'song':'Test','artist':'Artist','songId':'source:test','sourceComplete':True},'masterSha256':sha(master),'normalizedSha256':sha(original),'vocalSha256':sha(vocal),'job':str(job),'requestSpec':{'source_url':'https://example.invalid/selected'}}
+  cache.write_text(json.dumps(value));req={'title':'Test','artist':'Artist','mode':'chorus'}
+  self.assertIsNotNone(library.find_full_performance(root,req,'test'))
+  self.assertIsNone(library.find_full_performance(root,req,'other'))
+  self.assertIsNone(library.find_full_performance(root,{**req,'source_url':'https://example.invalid/other'},'test'))
+  master.write_bytes(b'changed');self.assertIsNone(library.find_full_performance(root,req,'test'))
+ def test_cache_identity_preserves_start_and_artist(self):
+  request={'title':'Same','artist':'A','start':0,'positionVersion':1}
+  self.assertEqual(library.request_spec(request)['start'],0)
+  self.assertNotEqual(library.request_spec(request),library.request_spec({**request,'artist':'B'}))
+ def test_voice_reference_has_no_tts_account_dependency(self):
+  from voice_reference import voice_signature
+  file=runtime.CONFIG['referenceAudio'];file.parent.mkdir(exist_ok=True);file.write_bytes(b'reference1');first,_=voice_signature();file.write_bytes(b'reference2');second,settings=voice_signature()
+  self.assertNotEqual(first,second);self.assertEqual(settings['engine'],'reference_file');self.assertNotIn('api_key',settings)
+
+if __name__=='__main__':unittest.main()
