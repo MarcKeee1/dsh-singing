@@ -1,4 +1,4 @@
-# dsh-singing 0.2.0
+# dsh-singing 0.2.1
 
 [English](README.en.md) · [更新记录](CHANGELOG.md) · [下载](https://github.com/MarcKeee1/dsh-singing/releases/latest)
 
@@ -8,7 +8,10 @@ DeepSeek Harness（DSH）的独立本地唱歌插件。输入歌名、歌手或 
 
 ## 功能
 
-- 支持整首、副歌和指定起点；没有 90 秒歌长上限。未指定唱法时默认约 45 秒普通片段。按原音源旋律做音色转换。
+- 支持只唱开头、副歌、开头到完整副歌、长一点、完整版和指定起点。普通点歌默认约 **45 秒**，“长一点”默认约 **90 秒**；这两种模式不先转写整首歌词。只有明确要求整首才使用完整版，指定时长仍按指定值处理。按原音源旋律做音色转换。
+- 歌手可省略，自动搜索尽量确认原唱；无法确认原唱或只有其他版本时先返回候选，确认后使用。标题没写歌手时会参考简介；明确提供的链接保留该版本。
+- 无法取得新音源时返回已缓存歌单；用户选序号后直接播放缓存，不重新合成。成功发出歌声后不补发歌名确认或旧音色提醒。
+- 使用参考声音确定音色；低音占多数、升八度明显更接近参考音域时可整体升 12 个半音，音准校验会计入该移调。
 - 支持完整 BV 链接和 `b23.tv` 短链接；用户明确指定的翻唱、改编版本可用。
 - 查找顺序：**B 站 → 网易云 → QQ 音乐**；明确给出原曲链接时只使用指定版本。
 - B 站优先官方音频、歌词版、录音室或纯享版，再考虑 MV；自动搜索排除明显对白、解说和现场版本。
@@ -79,11 +82,11 @@ py -3.11 scripts/setup.py --data-dir "D:/AI/dsh-singing" --torch cpu
 
 ### 3. 安装 DSH 插件
 
-使用发布页的 `dsh-singing-0.2.0.tgz`，或者自己打包：
+使用发布页的 `dsh-singing-0.2.1.tgz`，或者自己打包：
 
 ```powershell
 npm pack --ignore-scripts
-dsh plugin --profile <你的profile名> add ./dsh-singing-0.2.0.tgz
+dsh plugin --profile <你的profile名> add ./dsh-singing-0.2.1.tgz
 ```
 
 将 `<你的profile名>` 替换为实际 CLI profile。桌面版的 `desktop` profile 由 Electron 管理，请使用桌面插件管理入口安装本地包，不要用普通 CLI 强行改它。
@@ -107,7 +110,7 @@ dsh plugin --profile <你的profile名> add ./dsh-singing-0.2.0.tgz
 
 此前公开的 `v0.1.0` 将唱歌功能集成在同名 OneBot 替换包中；本版改为独立 `dsh-singing` 插件。安装新包不需要替换 QQ 插件，但启用前要处理旧 `sing_song` 重名：停用旧唱歌入口，或先将新插件工具名设为 `sing_song_local`。
 
-旧集成版的缓存不自动迁移。完成新安装验收前请保留旧数据。桌面交付源码原标记为 0.1.0，为接续仓库已有标签，本次公开包统一使用 **0.2.0**；旧 `v0.1.0` 标签和下载保留。
+旧集成版的缓存不自动迁移。完成新安装验收前请保留旧数据。桌面交付源码原标记为 0.1.0，为接续仓库已有标签，本次公开包统一使用 **0.2.1**；旧 `v0.1.0` 标签和下载保留。
 
 ## 使用示例
 
@@ -121,6 +124,20 @@ dsh plugin --profile <你的profile名> add ./dsh-singing-0.2.0.tgz
 指定起点而未指定时长时，从该处唱到结尾。整首模式不同时指定片段时长或起点。
 
 歌词起句至少四个字；歌词定位使用本地 Whisper，首次会更慢。副歌依据实际音轨中的重复歌词段或该版本可靠时间轴定位；找不到可靠范围会报错。完整缓存保留未删间奏的原始时间轴，因此后续“从 80 秒开始”不会因播放版剪过间奏而错位。
+
+## 可选 B 站登录
+
+在插件目录运行，数据目录必须与唱歌后端一致：
+
+```powershell
+& "$env:USERPROFILE/.dsh/singing/.venv/Scripts/pythonw.exe" scripts/bilibili-login.py --data-dir "$env:USERPROFILE/.dsh/singing"
+```
+
+点击“扫码登录”，用自己的 B 站 App 扫码并在手机确认。窗口不会询问密码、向 QQ 发送二维码或把 Cookie 交给模型。只有正常的 B 站 API 请求使用本机登录状态，音频 CDN 和其他平台不接收它；异常跨站跳转会停止。Linux 可用虚拟环境的 `python` 打开同一脚本，需要系统 Tk 支持，凭据文件权限为当前用户读写。
+
+登录不保证解除风控。二维码失效、验证码或访问拒绝会停止，需要用户主动处理；不轮换账号、地址或伪装设备重试。点“退出插件登录”删除本机保存的状态。不要上传数据目录中的 `.auth` 文件夹。
+
+网页版流程参考 [B 站扫码登录接口说明](https://github.com/bilibili-plugins/bilibili-api-collect/blob/master/docs/login/login_action/QR.md)；可在 [B 站官方登录页](https://account.bilibili.com/login) 手动处理验证。官方网页登录与此插件的独立登录状态并不自动同步。
 
 ## QQ 和桌面输出
 
