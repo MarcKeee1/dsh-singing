@@ -47,11 +47,15 @@ def main(args):
         with phase('register'):
             register=analyze(vocals,args.reference)
             if not runtime.CONFIG.get('autoOctave',True):register.update(semitones=0,reason='disabled_in_plugin_settings')
+            from phrase_register import analyze as analyze_phrases
+            profiles={'lead':analyze_phrases(vocals,args.reference,register['semitones'])}
+            if harmony:profiles['harmony']=analyze_phrases(harmony,args.reference,register['semitones'])
+            if any(p['intervals'] for p in profiles.values()):register['phraseRegister']=profiles
             (job/'register.json').write_text(json.dumps(register),encoding='utf-8')
         with phase('conversion'):
             previous=sys.argv[:];cwd=os.getcwd()
             try:
-                sys.argv=[str(CODE_DIR/'convert_tracks.py'),'--source',str(vocals),'--target',args.reference,'--outdir',str(job/'converted'),'--pitch-shift',str(register['semitones'])]
+                sys.argv=[str(CODE_DIR/'convert_tracks.py'),'--source',str(vocals),'--target',args.reference,'--outdir',str(job/'converted'),'--pitch-shift',str(register['semitones']),'--register-json',str(job/'register.json')]
                 if harmony:
                     sys.argv+=['--harmony-source',str(harmony),'--harmony-outdir',str(job/'harmony-converted')]
                 runpy.run_path(str(CODE_DIR/'convert_tracks.py'),run_name='__main__')
@@ -60,13 +64,13 @@ def main(args):
         made=list((job/'converted').glob('*.wav'))
         if len(made)!=1:raise RuntimeError('Expected one converted audio')
         with phase('quality'):
-            quality=check(vocals,made[0],register['semitones'])
+            quality=check(vocals,made[0],register['semitones'],register.get('phraseRegister',{}).get('lead'))
             (job/'pitch.json').write_text(json.dumps(quality),encoding='utf-8')
         if harmony:
             with phase('harmonyQuality'):
                 converted_harmony=list((job/'harmony-converted').glob('*.wav'))
                 if len(converted_harmony)!=1:raise RuntimeError('Expected one converted harmony')
-                harmony_quality=check(harmony,converted_harmony[0],register['semitones'])
+                harmony_quality=check(harmony,converted_harmony[0],register['semitones'],register.get('phraseRegister',{}).get('harmony'))
                 (job/'harmony-pitch.json').write_text(json.dumps(harmony_quality),encoding='utf-8')
                 if not harmony_quality['passed']:raise RuntimeError('Harmony pitch/timing QA failed')
                 status['harmonyProcessing']['quality']=harmony_quality
