@@ -1,5 +1,14 @@
 # 更新记录 / Changelog
 
+## 0.3.0 — Configurable dual-vocal singing / 可配置双声部演唱
+
+- DSH 原生插件配置：参考音频、默认时长、自动八度、三种音量和间奏开关；设置传递到实际工作进程并纳入缓存指纹。
+- 主唱和和声分别转换、校验与混音，保留重叠尾音时间；新歌自动判断低音是否需要升八度。
+- 歌单同一歌名和歌手只显示最长录音；短版本继续保留用于精确调用，无30秒阈值。
+- 复用经过哈希校验的分离音轨和音高特征；同一任务复用已加载转换模型。
+- 安装脚本新增独立和声分离环境与固定校验的 KARA2 模型，避免 ONNX 与唱歌依赖的 protobuf 冲突。
+- Native plugin controls, independently converted/checked lead and harmony, automatic octave selection for new songs, longest-only playlist entries, verified stem/pitch reuse and an isolated separator environment.
+
 ## 0.2.1 — Shorter defaults and current backend / 短片段默认值与后端同步
 
 - 普通点歌默认 45 秒，“长一点”默认 90 秒；不先转写整首，也不把长片段延长到完整副歌。 / Default excerpts are 45 seconds and longer excerpts 90 seconds, without whole-song transcription or automatic chorus extension.

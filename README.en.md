@@ -1,4 +1,4 @@
-# dsh-singing 0.2.1
+# dsh-singing 0.3.0
 
 [简体中文](README.md) · [Changelog](CHANGELOG.md) · [Downloads](https://github.com/MarcKeee1/dsh-singing/releases/latest)
 
@@ -6,8 +6,13 @@ A standalone local singing plugin for DeepSeek Harness. Request a song by title 
 
 The plugin contains no persona, private conversations, QQ account, API credentials, or preset character voice. It performs voice conversion along the source recording's melody; it does not read lyrics through speech synthesis.
 
-## What's new in 0.2.1
+## Plugin settings
 
+Open **dsh-singing** in DSH plugin management. Configure the reference audio, excerpt lengths, automatic octave selection, vocal/music/harmony gains and instrumental-gap handling. Changes apply to subsequent jobs; explicit cached-song selections retain their saved audio. One longest recording per title and artist is shown, with no minimum-duration filter; shorter variants remain available for exact reuse.
+
+## What's new in 0.3.0
+
+- Convert lead and backing vocals separately with one reference voice, preserve overlap timing and check each converted track.
 - A separate `dsh-singing` plugin; installing it does not replace the OneBot QQ package.
 - Openings, choruses, opening through the first complete chorus, longer excerpts, full songs, and selected starting positions. Ordinary requests default to **45 seconds**; “a bit longer” defaults to **90 seconds**, without transcribing the entire song first. Full conversion is reserved for explicit full-song requests; explicit durations remain available.
 - The artist is optional. Prefer the original recording, inspect descriptions when titles omit artist names, and request confirmation before using an unconfirmed or different version.
@@ -24,7 +29,7 @@ The plugin contains no persona, private conversations, QQ account, API credentia
 - DSH 0.2.1 or later stable 0.2.x releases; the supplied validation specifically used **0.2.1-rc.5**. Other prerelease versions require a compatibility check.
 - **Python 3.11**, FFmpeg, and Node.js 22+ for packaging/tests.
 - Primarily validated on **Windows + NVIDIA CUDA**. CPU installation is available for compatibility and diagnostics but can be much slower. Linux/macOS have not completed full singing acceptance tests.
-- Approximately 2.6 GB of pinned models, plus Python/PyTorch and caches. Reserve at least 15 GB.
+- Approximately 2.7 GB of pinned models, plus Python/PyTorch and caches. Reserve at least 20 GB.
 - QQ delivery needs an existing OneBot plugin, a connected NapCat, and a `qq_send_voice` tool available in the calling session.
 
 The validated PyTorch combination is 2.4.1 / CUDA 12.1. See the [PyTorch version instructions](https://pytorch.org/get-started/previous-versions/) and [Seed-VC](https://github.com/Plachtaa/seed-vc).
@@ -77,11 +82,11 @@ Run the health check, adapting the Python path for a custom data directory:
 
 ### 3. Install the DSH plugin
 
-Download `dsh-singing-0.2.1.tgz` from [Releases](https://github.com/MarcKeee1/dsh-singing/releases/latest), or build it:
+Download `dsh-singing-0.3.0.tgz` from [Releases](https://github.com/MarcKeee1/dsh-singing/releases/latest), or build it:
 
 ```powershell
 npm pack --ignore-scripts
-dsh plugin --profile <your-profile> add ./dsh-singing-0.2.1.tgz
+dsh plugin --profile <your-profile> add ./dsh-singing-0.3.0.tgz
 ```
 
 Replace `<your-profile>` with your CLI profile. The desktop application's `desktop` profile is managed by Electron: use its local plugin installation interface instead of forcing CLI changes to that profile.
@@ -215,3 +220,7 @@ Maintained by MarcKeee1, with implementation and publication assistance from Cod
 ## Optional Bilibili sign-in
 
 Use the backend environment to run `scripts/bilibili-login.py --data-dir <your-backend-data-directory>`. Scan the QR code in your own Bilibili app. Credentials remain in the local `.auth` directory and are never included in model messages, QQ messages, or the repository. Authentication is used only for Bilibili API requests, not audio CDNs or unrelated sites. Sign-in does not bypass CAPTCHAs or access restrictions; failures require user action. The window can remove the saved sign-in state.
+
+## Upgrading from 0.2.x
+
+Update the source and rerun `scripts/setup.py` before installing the new package. The installer adds a separate `.venv-lead` environment and a checksum-pinned 53 MB KARA2 model, keeping ONNX/protobuf dependencies isolated from the singing environment. Old data is retained; the new pipeline uses a different voice/cache fingerprint. Dual-track conversion costs more compute, while verified stems and pitch features are reused.
