@@ -1,5 +1,14 @@
 # 更新记录 / Changelog
 
+## 0.3.3 — NetEase sign-in / 网易云扫码登录
+
+- 新增网易云扫码登录窗口、登录有效性检查和退出入口；本机会话在 Windows 使用 DPAPI 加密，不交给模型或 QQ。
+- 扫码遇到 8821 验证时，提供独立的官方网页登录窗口，由用户自行完成验证；不读取其他浏览器的资料。
+- 网易云查歌、歌词和播放地址请求实际使用已保存账号；试听继续拒绝，完整音轨继续核对实际时长。
+- 支持网易云常见的 `/#/song?id=...` 链接；不再仅凭歌曲收费分类误拒绝平台已授权完整播放的结果。
+- 每次点歌独立判断 B 站访问结果，不读取或写入旧的半小时锁定状态；明确识别服务器返回的访问拒绝。
+- User-operated NetEase QR sign-in, locally protected sessions, authenticated song lookup and ordinary account-authorized playback.
+
 ## 0.3.2 — Full-song intent and source reuse / 完整版意图与原音源复用
 
 - 混合音域歌曲也逐句判断0/+12：不再要求整首先被判为升八度，低音句与高音句分别处理。支持旧版分句记录，关闭自动八度时保留原调。

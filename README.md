@@ -152,6 +152,28 @@ dsh plugin --profile <你的profile名> add ./dsh-singing-0.3.2.tgz
 
 网页版流程参考 [B 站扫码登录接口说明](https://github.com/bilibili-plugins/bilibili-api-collect/blob/master/docs/login/login_action/QR.md)；可在 [B 站官方登录页](https://account.bilibili.com/login) 手动处理验证。官方网页登录与此插件的独立登录状态并不自动同步。
 
+## 可选网易云登录
+
+每次新点歌独立访问各平台，不因上次 B 站失败锁定半小时。B 站真实返回的访问拒绝会记录并尝试后续平台；下一次用户点歌仍可正常请求 B 站。
+
+在仓库目录运行以下命令，使用自己的网易云音乐 App 扫码并在手机确认。Windows 使用 `pythonw` 不会弹出终端窗口。
+
+```powershell
+& "$env:USERPROFILE/.dsh/singing/.venv/Scripts/pythonw.exe" scripts/netease-login.py --data-dir "$env:USERPROFILE/.dsh/singing" --scan
+```
+
+窗口提供扫码登录、检查登录状态和退出插件登录。登录状态在 Windows 使用当前用户的 DPAPI 加密，保存在数据目录的 `.auth/netease.dpapi`；不需要向模型提供密码或 Cookie。Linux 使用权限为 `0600` 的本机会话文件，需要 Tk 支持。网易云查询、歌词和播放地址接口使用该状态；其他平台和音频 CDN 不接收 Cookie。独立登录无需重启 DSH，浏览器里的登录不会自动同步。
+
+扫码接口返回 8821 等验证状态时，点击“官方网页登录（扫码受限时使用）”。这会使用 DSH 已有的 Electron 打开独立网易云官网窗口，由你自行登录和处理验证。只从该窗口读取网易云会话，不读取 Chrome、Edge 或 DSH 的其他资料。窗口关闭后清除其内存中的浏览器会话，唱歌插件仅保留本机加密的会话文件。需要时可用 `--web` 直接打开；运行时不在默认位置时设置 `DSH_SINGING_ELECTRON` 为已有 Electron 可执行文件路径。此流程参考上游维护者的 [官方网页登录建议](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced/issues/4)。
+
+支持直接点网易云链接，例如“唱这个 https://music.163.com/#/song?id=123”，也保留 B 站 → 网易云 → QQ 音乐的自动查找顺序。登录不增加账号本身没有的播放权限；平台返回试听时会拒绝，完整音轨仍检查实际时长。窗口关闭或二维码到期后停止轮询，不自动反复登录。接口流程参考 [扫码 key](https://github.com/neteasecloudmusicapienhanced/api-enhanced/blob/main/module/login_qr_key.js) 和 [扫码状态](https://github.com/neteasecloudmusicapienhanced/api-enhanced/blob/main/module/login_qr_check.js) 的当前实现。
+
+命令行只检查登录是否有效，不输出账号资料或凭据：
+
+```powershell
+& "$env:USERPROFILE/.dsh/singing/.venv/Scripts/python.exe" scripts/netease-login.py --data-dir "$env:USERPROFILE/.dsh/singing" --status
+```
+
 ## QQ 和桌面输出
 
 `delivery: auto` 在 QQ 会话中调用已有的 `qq_send_voice`，只传生成文件路径，不传其他聊天目标。调用走 DSH 正常工具执行流程，保留现有权限检查。

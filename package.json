@@ -1,6 +1,6 @@
 {
   "name": "dsh-singing",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Local singing voice conversion for DeepSeek Harness, with song lookup, excerpt positioning and optional OneBot delivery",
   "type": "module",
   "main": "lib/index.js",
@@ -33,6 +33,7 @@
     "python/*.py",
     "scripts/*.py",
     "scripts/*.ps1",
+    "scripts/*.cjs",
     "models.lock.json",
     "vendor.lock.json",
     "vendor-overrides",

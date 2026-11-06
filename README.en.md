@@ -221,6 +221,14 @@ Maintained by MarcKeee1, with implementation and publication assistance from Cod
 
 Use the backend environment to run `scripts/bilibili-login.py --data-dir <your-backend-data-directory>`. Scan the QR code in your own Bilibili app. Credentials remain in the local `.auth` directory and are never included in model messages, QQ messages, or the repository. Authentication is used only for Bilibili API requests, not audio CDNs or unrelated sites. Sign-in does not bypass CAPTCHAs or access restrictions; failures require user action. The window can remove the saved sign-in state.
 
+## Optional NetEase sign-in
+
+Run `scripts/netease-login.py --data-dir <your-backend-data-directory> --scan` with the backend environment (`pythonw` on Windows). Scan and confirm using your own NetEase Cloud Music app. The window also checks and removes the saved session. Windows credentials use current-user DPAPI; other systems use a mode-0600 local file. Only official NetEase HTTPS API calls receive the cookies, never media CDNs, other services, QQ or model messages. No DSH restart is needed.
+
+Search, lyrics and playback requests use the saved account. Playback remains subject to the account's normal access; previews and incomplete audio are rejected. Explicit NetEase song links, including `/#/song?id=...`, select NetEase directly. Automatic provider order remains Bilibili, NetEase, QQ Music. Closing the window or expiry stops QR polling. `--status` reports validity without exposing account details or credentials. Do not publish `.auth`.
+
+If the QR endpoint returns verification code 8821, use the official-web sign-in button or `--web`. An existing DSH Electron runtime opens an isolated official NetEase window for user-operated login and verification. It reads only that window's NetEase session, never another browser's profile. Browser cookies are in memory; only the protected backend session is retained after closing. Set `DSH_SINGING_ELECTRON` if the existing runtime is not in the usual DSH home directory.
+
 ## Upgrading from 0.2.x
 
 Update the source and rerun `scripts/setup.py` before installing the new package. The installer adds a separate `.venv-lead` environment and a checksum-pinned 53 MB KARA2 model, keeping ONNX/protobuf dependencies isolated from the singing environment. Old data is retained; the new pipeline uses a different voice/cache fingerprint. Dual-track conversion costs more compute, while verified stems and pitch features are reused.
