@@ -219,7 +219,8 @@ def resolve_uncached(song,artist,source_url='',providers=None):
             return {**record,'sourceAttempts':attempts+[{'provider':provider,'status':'selected'}]}
         except (OSError,ValueError,KeyError,TypeError) as error:
             if isinstance(error,SourceChoiceRequired):alternatives.extend(error.options)
-            status='access_denied' if isinstance(error,urllib.error.HTTPError) and error.code in {401,403,412,429} else 'unavailable'
+            from bili_session import is_blocked
+            status='access_denied' if is_blocked(error) else 'unavailable'
             attempts.append({'provider':provider,'status':status,'reason':str(error)[:180]})
             if source_url:raise ValueError(provider+' 指定音源失败：'+str(error)) from error
     if alternatives:raise SourceChoiceRequired(alternatives)
