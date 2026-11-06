@@ -131,6 +131,9 @@ def select_segment(lines, song_seconds, duration=None, hint=''):
 def title_matches(name, requested):
     # A studio edition is fine; a cover/live/remix/short clip is not an original.
     name = re.sub(r'[（(](?:唱片版|专辑版|Album Version|Remaster(?:ed)?)[）)]\s*$', '', str(name), flags=re.I)
+    # An OST credit describes the release, rather than a different performance.
+    # Only remove this narrow annotation; Live/DJ/cover qualifiers stay significant.
+    name = re.sub(r'\s*[（(](?:电视剧|电影|网剧|动画|动漫|游戏)?《[^》()（）]{1,80}》(?:主题曲|片头曲|片尾曲|插曲|推广曲|宣传曲)[）)]\s*$', '', name)
     return normalized(name) == normalized(requested)
 
 

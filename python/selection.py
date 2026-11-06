@@ -22,7 +22,7 @@ def repeated_chorus(words,total):
     for word in words:
         value=name_key(word.get('text',''))
         a,b=float(word.get('start',0)),float(word.get('end',0))
-        if not value or not 0<=a<b<=total+1:continue
+        if not value or not 0<=a<=b<=total+1:continue
         text+=value;stamps.extend([(a,b)]*len(value))
     candidates=[]
     # Repeated 12+ character anchors separated by at least 20 seconds.
@@ -34,7 +34,9 @@ def repeated_chorus(words,total):
             length=12
             while j+length<i and i+length<len(text) and text[j+length]==text[i+length]:length+=1
             a,b=stamps[j][0],stamps[j+length-1][1]
-            if length>=18 and b-a>=10 and all(stamps[k+1][0]-stamps[k][1]<6 for k in range(j,j+length-1)):
+            if (length>=18 and b-a>=10 and any(end>start for start,end in stamps[j:j+length])
+                    and any(end>start for start,end in stamps[i:i+length])
+                    and all(stamps[k+1][0]-stamps[k][1]<6 for k in range(j,j+length-1))):
                 candidates.append((length,b-a,-a,max(0,a-.12),min(total,b+.3)))
         anchors.setdefault(anchor,[]).append(i)
     if not candidates:raise PositionError('没有可靠确定副歌范围；可指定起唱歌词、秒数，或改唱整首')
@@ -63,6 +65,9 @@ def select_range(request,source,total,metadata,*,root,ffmpeg):
         return start,stop,{'method':'long_section','selectionConfidence':'lyric_timeline' if starts else 'excerpt',
                            'softTargetSeconds':90,'fullTranscriptionRequired':False}
     if mode in {'chorus','opening','opening_to_chorus'}:
+        if not metadata.get('lyricLines'):
+            from lyric_alignment import enrich_lyrics
+            metadata=enrich_lyrics(source,total,metadata,root=root)
         lines=metadata.get('lyricLines') or []
         words=[]
         if lines:
@@ -74,7 +79,7 @@ def select_range(request,source,total,metadata,*,root,ffmpeg):
                 a,_=choose_chorus(lines,total);return a,chorus_end(lines,a,total)
         else:
             words=transcript(str(source),'',metadata['songId'],total,root=root,ffmpeg=ffmpeg)
-            words=sorted((w for w in words if name_key(w.get('text','')) and 0<=float(w.get('start',0))<float(w.get('end',0))<=total+1),key=lambda w:float(w['start']))
+            words=sorted((w for w in words if name_key(w.get('text','')) and 0<=float(w.get('start',0))<=float(w.get('end',0))<=total+1),key=lambda w:float(w['start']))
             if not words:raise PositionError('没有可用的起唱时间')
             first=max(0,float(words[0]['start'])-.12)
             endings=[min(total,float(w['end'])+.15) for i,w in enumerate(words) if i==len(words)-1 or float(words[i+1]['start'])-float(w['end'])>=.35 or any(c in w['text'] for c in '。！？.!?')]
@@ -89,7 +94,8 @@ def select_range(request,source,total,metadata,*,root,ffmpeg):
         if duration is not None:stop=min(stop,start+float(duration))
         start,stop=bounds(start,total,stop-start)
         method={'chorus':'repeated_section','opening':'opening_section','opening_to_chorus':'opening_through_first_chorus'}[mode]
-        return start,stop,{'method':method,'selectionConfidence':'repeated_lyrics' if mode in {'chorus','opening_to_chorus'} else 'lyric_timeline','softTargetSeconds':None}
+        return start,stop,{'method':method,'selectionConfidence':'repeated_lyrics' if mode in {'chorus','opening_to_chorus'} else 'lyric_timeline','softTargetSeconds':None,
+                           **({'lyricsAlignment':metadata['lyricsAlignment']} if metadata.get('lyricsAlignment') else {})}
     start=min(60,total*.25,max(0,total-5))
     start,stop=bounds(start,total,duration if duration is not None else 45)
     return start,stop,{'method':'vocal_excerpt'}

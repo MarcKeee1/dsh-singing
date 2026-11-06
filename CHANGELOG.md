@@ -1,5 +1,13 @@
 # 更新记录 / Changelog
 
+## 0.3.4 — Verified lyric timeline / 副歌歌词时间轴对齐
+
+- 选定音轨缺少歌词时间轴时，查询同歌名、同歌手的网易云原版参考；在实际音频的三个不同位置校验录音和稳定时间差后，才映射歌词时间轴，保留用户选定的音轨。
+- 拒绝不同录音、插入间奏或不稳定时间差的对齐；无可靠参考时继续使用该音轨自身的本地识别。通过核验的结果按音源哈希缓存。
+- 电视剧/电影等《作品名》主题曲、片尾曲说明不再误判为不同演唱版本；Live、DJ、翻唱等限定继续参与版本判断。
+- 副歌重复检测保留有相邻可靠时长的零时长词，避免丢失识别出的歌词；不会仅凭全部为点时间戳的文本确认副歌。
+- Verify the selected recording before borrowing a timed lyric reference, cache the source-specific timeline, and recognize narrow OST title annotations.
+
 ## 0.3.3 — NetEase sign-in / 网易云扫码登录
 
 - 新增网易云扫码登录窗口、登录有效性检查和退出入口；本机会话在 Windows 使用 DPAPI 加密，不交给模型或 QQ。
