@@ -17,7 +17,7 @@ class PhraseRegister(unittest.TestCase):
   p=plan(f,np.full(1000,227.),0)
   np.testing.assert_array_equal(apply(f,p,0),f)
  def test_tiny_outlier_is_not_an_octave_switch(self):
-  f=np.full(1000,145.);f[400:405]=300
+  f=np.full(1000,145.);f[400:405]=220
   self.assertFalse(plan(f,np.full(1000,227.),12)['intervals'])
  def test_vibrato_uses_hysteresis(self):
   f=np.r_[np.full(100,150.),np.tile([220.,210.],20),np.full(100,150.)]
@@ -44,5 +44,17 @@ class PhraseRegister(unittest.TestCase):
  def test_local_pitch_is_independent_of_track_coverage(self):
   q=local_quality({'voicedFrames':78,'voicedCoverage':.7429,'medianAbsoluteCents':16,'p90AbsoluteCents':49})
   self.assertTrue(q['passed']);self.assertTrue(q['coverageCheckedAtTrackLevel'])
+ def test_low_phrases_are_lifted_even_when_whole_song_base_is_zero(self):
+  f=np.r_[np.full(400,194.),np.zeros(25),np.full(400,148.),np.zeros(25),np.full(400,260.)]
+  p=plan(f,np.full(1000,227.),0);e=apply(f,p,0)
+  self.assertEqual(e[100],388);self.assertEqual(e[500],296);self.assertEqual(e[1000],260)
+ def test_disabling_auto_preserves_low_phrases(self):
+  f=np.full(1000,148.);p=plan(f,np.full(1000,227.),0,enabled=False);np.testing.assert_array_equal(apply(f,p,0),f)
+ def test_legacy_high_protection_profile_remains_readable(self):
+  p={'version':1,'baseShiftSemitones':12,'frameRate':100,'intervals':[{'startFrame':200,'endFrame':300,'semitones':0}]}
+  f=np.full(1000,260.);self.assertEqual(apply(f,p,12)[250],260)
+ def test_short_extreme_harmonic_cannot_be_doubled_to_squeal(self):
+  f=np.full(1000,150.);f[400:403]=465.
+  p=plan(f,np.full(1000,227.),0);self.assertEqual(apply(f,p,0)[401],465)
 
 if __name__=='__main__':unittest.main()

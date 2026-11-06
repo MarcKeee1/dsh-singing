@@ -18,3 +18,8 @@ test('backend rejects malformed output and startup failures',async()=>{
     const c=child();await assert.rejects(runBackend('x',{python:'x',configFile:'x',timeoutMs:0},undefined,{spawnProcess:()=>{process.nextTick(()=>{if(startup)c.emit('error',Error('ENOENT'));else{c.stdout.write('invalid');c.emit('close',0)}});return c}}));
   }
 });
+test('long-song metadata is not silently truncated into invalid JSON',async()=>{
+ const c=child(),payload={ok:true,seconds:240,details:'x'.repeat(100000)};
+ const result=runBackend('request.json',{python:'python',configFile:'backend.json',timeoutMs:0},undefined,{spawnProcess:()=>{process.nextTick(()=>{const data=JSON.stringify(payload);c.stdout.write(data.slice(0,50000));c.stdout.write(data.slice(50000));c.emit('close',0)});return c}});
+ assert.equal((await result).details.length,100000);
+});
