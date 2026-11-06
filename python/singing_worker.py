@@ -9,6 +9,8 @@ def main(args):
     def phase(name):
         t=time.monotonic()
         try:yield
+        except BaseException:
+            status['failedStage']=name;raise
         finally:timings[name]=round(time.monotonic()-t,3)
     try:
         with phase('imports'):
@@ -39,7 +41,8 @@ def main(args):
             from lead_vocal import prepare
             vocals,lead_info=prepare(ROOT,stems/'vocals.wav',job/'lead',CODE_DIR)
             status['leadVocal']=lead_info
-        if np.sqrt(np.mean(sf.read(vocals,always_2d=True)[0]**2))<.001:raise ValueError('This excerpt contains too little singing')
+        with phase('vocalValidation'):
+            if np.sqrt(np.mean(sf.read(vocals,always_2d=True)[0]**2))<.001:raise ValueError('This excerpt contains too little singing')
         with phase('harmonyPreparation'):
             from harmony_vocal import prepare as prepare_harmony
             harmony,harmony_info=prepare_harmony(stems/'vocals.wav',vocals,job/'lead')
@@ -48,8 +51,8 @@ def main(args):
             register=analyze(vocals,args.reference)
             if not runtime.CONFIG.get('autoOctave',True):register.update(semitones=0,reason='disabled_in_plugin_settings')
             from phrase_register import analyze as analyze_phrases
-            profiles={'lead':analyze_phrases(vocals,args.reference,register['semitones'])}
-            if harmony:profiles['harmony']=analyze_phrases(harmony,args.reference,register['semitones'])
+            profiles={'lead':analyze_phrases(vocals,args.reference,register['semitones'],enabled=runtime.CONFIG.get('autoOctave',True))}
+            if harmony:profiles['harmony']=analyze_phrases(harmony,args.reference,register['semitones'],enabled=runtime.CONFIG.get('autoOctave',True))
             if any(p['intervals'] for p in profiles.values()):register['phraseRegister']=profiles
             (job/'register.json').write_text(json.dumps(register),encoding='utf-8')
         with phase('conversion'):
@@ -76,7 +79,7 @@ def main(args):
                 status['harmonyProcessing']['quality']=harmony_quality
         status.update(ok=True,pitchCache=dict(pitch_features.stats))
     except BaseException as error:
-        status['errorType']=type(error).__name__;raise
+        status['errorType']=type(error).__name__;status['errorMessage']=str(error)[:600];raise
     finally:
         status['elapsedSeconds']=round(time.monotonic()-started,3)
         (job/'stages.json').write_text(json.dumps(status,indent=2),encoding='utf-8')

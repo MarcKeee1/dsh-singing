@@ -218,6 +218,9 @@ def resolve_uncached(song,artist,source_url='',providers=None):
 
 def resolve_public(song,artist='',source_url=''):
     artist=canonical_artist(artist)
+    from source_reuse import find_verified_full
+    known=find_verified_full(ROOT,song,artist,source_url)
+    if known:return known
     key=hashlib.sha256(json.dumps([normalized(song),artist,source_url,'full-sources-v1',PROVIDER_ORDER],ensure_ascii=False).encode()).hexdigest()
     directory=ROOT/'lookup-cache';directory.mkdir(exist_ok=True)
     path=directory/(key+'.json')
