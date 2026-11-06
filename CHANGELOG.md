@@ -6,6 +6,7 @@
 - 扫码遇到 8821 验证时，提供独立的官方网页登录窗口，由用户自行完成验证；不读取其他浏览器的资料。
 - 网易云查歌、歌词和播放地址请求实际使用已保存账号；试听继续拒绝，完整音轨继续核对实际时长。
 - 支持网易云常见的 `/#/song?id=...` 链接；不再仅凭歌曲收费分类误拒绝平台已授权完整播放的结果。
+- 每次点歌独立判断 B 站访问结果，不读取或写入旧的半小时锁定状态；明确识别服务器返回的访问拒绝。
 - User-operated NetEase QR sign-in, locally protected sessions, authenticated song lookup and ordinary account-authorized playback.
 
 ## 0.3.2 — Full-song intent and source reuse / 完整版意图与原音源复用

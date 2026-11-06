@@ -154,6 +154,8 @@ dsh plugin --profile <你的profile名> add ./dsh-singing-0.3.2.tgz
 
 ## 可选网易云登录
 
+每次新点歌独立访问各平台，不因上次 B 站失败锁定半小时。B 站真实返回的访问拒绝会记录并尝试后续平台；下一次用户点歌仍可正常请求 B 站。
+
 在仓库目录运行以下命令，使用自己的网易云音乐 App 扫码并在手机确认。Windows 使用 `pythonw` 不会弹出终端窗口。
 
 ```powershell
