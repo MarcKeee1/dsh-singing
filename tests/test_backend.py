@@ -8,6 +8,25 @@ import bili_source as b,song_position as p,performance_library as library,runtim
 import selection,resolve_song,public_providers
 
 class BackendTests(unittest.TestCase):
+ def test_ost_annotation_is_not_mistaken_for_a_different_performance(self):
+  self.assertTrue(resolve_song.title_matches('测试曲 (电视剧《虚构剧名》片尾曲)','测试曲'))
+  self.assertTrue(resolve_song.title_matches('测试曲（电影《虚构电影》主题曲）','测试曲'))
+  for title in ['测试曲 (Live)','测试曲 (DJ版)','测试曲 (Cover)','测试曲 (电视剧《虚构剧名》片尾曲) (Live)','测试曲翻唱 (电视剧《虚构剧名》片尾曲)','其他测试曲 (电视剧《虚构剧名》片尾曲)']:
+   self.assertFalse(resolve_song.title_matches(title,'测试曲'))
+ def test_verified_recording_lyrics_locate_chorus_without_asr(self):
+  lines=[(12,'开头第一句'),(30,'开头第二句'),(70,'重复的副歌甲'),(80,'重复的副歌乙'),(90,'重复的副歌丙'),(100,'重复的副歌丁'),(110,'桥段甲'),(140,'桥段乙'),(190,'重复的副歌甲'),(200,'重复的副歌乙'),(210,'重复的副歌丙'),(220,'重复的副歌丁'),(230,'尾声')]
+  metadata={'songId':'fixture'};proof={'method':'verified_recording_correlation','offsetSeconds':.16}
+  with patch('lyric_alignment.enrich_lyrics',return_value={**metadata,'lyricLines':lines,'lyricsAlignment':proof}),patch.object(selection,'transcript',side_effect=AssertionError('verified lyrics must not run ASR')):
+   start,stop,details=selection.select_range({'mode':'chorus'},'unused',260,metadata,root=root,ffmpeg='unused')
+  self.assertEqual((start,stop),(70,110));self.assertEqual(details['lyricsAlignment'],proof)
+ def test_point_timestamp_words_are_not_dropped_from_repeated_phrase(self):
+  text='测试副歌甲句测试副歌乙句测试副歌丙句';words=[]
+  for offset in [40,110]:
+   for i,char in enumerate(text):words.append({'text':char,'start':offset+i*.7,'end':offset+i*.7+(0 if i%2 else .6)})
+  start,stop=selection.repeated_chorus(words,180)
+  self.assertLess(start,41);self.assertGreater(stop,50)
+  for word in words:word['end']=word['start']
+  with self.assertRaises(p.PositionError):selection.repeated_chorus(words,180)
  def test_each_new_song_lookup_is_independent_of_old_bili_lockout(self):
   import time
   with tempfile.TemporaryDirectory() as folder:
