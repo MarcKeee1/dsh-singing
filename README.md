@@ -1,4 +1,4 @@
-# dsh-singing 0.3.1
+# dsh-singing 0.3.2
 
 [English](README.en.md) · [更新记录](CHANGELOG.md) · [下载](https://github.com/MarcKeee1/dsh-singing/releases/latest)
 
@@ -13,6 +13,10 @@ DeepSeek Harness（DSH）的独立本地唱歌插件。输入歌名、歌手或 
 设置改变会区分新合成的缓存；显式点选已有歌单仍播放原缓存，不会偷偷重唱。歌单同一歌名和歌手只显示时长最长的一份，其他片段保留用于精确点播；没有“短于30秒就隐藏”的规则。
 
 自动八度会先判断歌曲的基础音域，再分别检查主唱与和声的高音句。低音段可以升八度，已经偏高的句子保留原音域，避免整段统一升八度造成尖声。判断依据是实际音高和参考音域，不依赖歌名或歌手；关闭自动八度时保留原调。分句移调会写入任务记录，转换结果按对应目标音高检查。
+
+混合音域歌曲即使整首基础判断为不升八度，也会逐句检查低音句。说话参考的音高只用于估计合适音域，原曲旋律按0或+12半音映射；不会因为整首中位数较高就漏掉低音句。主唱和和声使用各自的记录。
+
+“完整版”“完整版本”“整首”“全曲”“全部唱完”表示完整演唱；不能用90秒或其他片段缓存代替。明确只唱副歌、开头、指定时长或起点时仍按对应要求处理。已验证的完整原音源保留在本地时，可用于后续整首或选段，无需重新搜索和下载。
 
 ## 功能
 
@@ -91,11 +95,11 @@ py -3.11 scripts/setup.py --data-dir "D:/AI/dsh-singing" --torch cpu
 
 ### 3. 安装 DSH 插件
 
-使用发布页的 `dsh-singing-0.3.1.tgz`，或者自己打包：
+使用发布页的 `dsh-singing-0.3.2.tgz`，或者自己打包：
 
 ```powershell
 npm pack --ignore-scripts
-dsh plugin --profile <你的profile名> add ./dsh-singing-0.3.1.tgz
+dsh plugin --profile <你的profile名> add ./dsh-singing-0.3.2.tgz
 ```
 
 将 `<你的profile名>` 替换为实际 CLI profile。桌面版的 `desktop` profile 由 Electron 管理，请使用桌面插件管理入口安装本地包，不要用普通 CLI 强行改它。

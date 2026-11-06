@@ -1,4 +1,4 @@
-# dsh-singing 0.3.1
+# dsh-singing 0.3.2
 
 [简体中文](README.md) · [Changelog](CHANGELOG.md) · [Downloads](https://github.com/MarcKeee1/dsh-singing/releases/latest)
 
@@ -82,11 +82,11 @@ Run the health check, adapting the Python path for a custom data directory:
 
 ### 3. Install the DSH plugin
 
-Download `dsh-singing-0.3.1.tgz` from [Releases](https://github.com/MarcKeee1/dsh-singing/releases/latest), or build it:
+Download `dsh-singing-0.3.2.tgz` from [Releases](https://github.com/MarcKeee1/dsh-singing/releases/latest), or build it:
 
 ```powershell
 npm pack --ignore-scripts
-dsh plugin --profile <your-profile> add ./dsh-singing-0.3.1.tgz
+dsh plugin --profile <your-profile> add ./dsh-singing-0.3.2.tgz
 ```
 
 Replace `<your-profile>` with your CLI profile. The desktop application's `desktop` profile is managed by Electron: use its local plugin installation interface instead of forcing CLI changes to that profile.
