@@ -45,6 +45,10 @@ def plan(source_f0,reference_f0,base_shift,*,enabled=True):
             finish(last+1);active=False
             if valid and value*2>ceiling:active=True;start=i;last=i;voiced=1
     if active:finish(last+1)
+    # Very high source frames must never be doubled, even if a polyphonic
+    # pitch tracker switches harmonics for less than the phrase duration.
+    # Hysteresis above still handles vibrato close to the register boundary.
+    shifts[(source>=65)&(source<=1100)&(source*2>ceiling*1.1)]=0
     runs=[];start=0
     while start<len(shifts):
         if shifts[start]==base_shift:start+=1;continue

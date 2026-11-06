@@ -1,5 +1,5 @@
 """One bounded worker for separation, pitch, conversion and QA. GPU exits with worker."""
-import argparse,gc,json,os,pathlib,runpy,sys,time
+import argparse,gc,json,os,pathlib,runpy,sys,time,shutil
 from contextlib import contextmanager
 
 def main(args):
@@ -68,12 +68,25 @@ def main(args):
         if len(made)!=1:raise RuntimeError('Expected one converted audio')
         with phase('quality'):
             quality=check(vocals,made[0],register['semitones'],register.get('phraseRegister',{}).get('lead'))
+            if not quality['passed']:
+                from pitch_repair import repair
+                recovery=repair(vocals,made[0],job/'main-pitch-repair',register['semitones'],register.get('phraseRegister',{}).get('lead'))
+                status['mainPitchRepair']=recovery
+                if recovery['ok']:
+                    shutil.copy2(recovery['path'],made[0]);quality=check(vocals,made[0],register['semitones'],register.get('phraseRegister',{}).get('lead'))
             (job/'pitch.json').write_text(json.dumps(quality),encoding='utf-8')
+            if not quality['passed']:raise RuntimeError('Main pitch/timing QA failed')
         if harmony:
             with phase('harmonyQuality'):
                 converted_harmony=list((job/'harmony-converted').glob('*.wav'))
                 if len(converted_harmony)!=1:raise RuntimeError('Expected one converted harmony')
                 harmony_quality=check(harmony,converted_harmony[0],register['semitones'],register.get('phraseRegister',{}).get('harmony'))
+                if not harmony_quality['passed']:
+                    from pitch_repair import repair
+                    recovery=repair(harmony,converted_harmony[0],job/'harmony-pitch-repair',register['semitones'],register.get('phraseRegister',{}).get('harmony'))
+                    status['harmonyPitchRepair']=recovery
+                    if recovery['ok']:
+                        shutil.copy2(recovery['path'],converted_harmony[0]);harmony_quality=check(harmony,converted_harmony[0],register['semitones'],register.get('phraseRegister',{}).get('harmony'))
                 (job/'harmony-pitch.json').write_text(json.dumps(harmony_quality),encoding='utf-8')
                 if not harmony_quality['passed']:raise RuntimeError('Harmony pitch/timing QA failed')
                 status['harmonyProcessing']['quality']=harmony_quality
