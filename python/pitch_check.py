@@ -42,22 +42,13 @@ def compare_pitch(source, converted, expected_shift=0):
 
 
 def check(source_path, converted_path, expected_shift=0):
-    torch.set_num_threads(4)
-    model = RMVPE(str(MODELS / 'lj1995--VoiceConversionWebUI/rmvpe.pt'), is_half=False, device='cpu')
-    source, _ = librosa.load(source_path, sr=16000)
-    converted, _ = librosa.load(converted_path, sr=16000)
-    def extract(wave):
-        parts = []
-        for start in range(0, len(wave), 20 * 16000):
-            chunk = wave[start:start + 20 * 16000]
-            parts.append(model.infer_from_audio(chunk, thred=0.05)[:len(chunk) // 160])
-        return np.concatenate(parts)
-    source_f0 = extract(source)
-    converted_f0 = extract(converted)
+    from pitch_features import extract
+    source_f0,source_samples=extract(source_path)
+    converted_f0,converted_samples=extract(converted_path)
     result = compare_pitch(source_f0, converted_f0,expected_shift)
-    result['sourceSeconds'] = round(len(source) / 16000, 4)
-    result['convertedSeconds'] = round(len(converted) / 16000, 4)
-    result['durationDifferenceMs'] = round(abs(len(source) - len(converted)) / 16, 2)
+    result['sourceSeconds'] = round(source_samples / 16000, 4)
+    result['convertedSeconds'] = round(converted_samples / 16000, 4)
+    result['durationDifferenceMs'] = round(abs(source_samples - converted_samples) / 16, 2)
     if result['durationDifferenceMs'] > 80:
         result['passed'] = False
         result['durationMismatch'] = True

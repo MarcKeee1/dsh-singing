@@ -2,8 +2,9 @@
 import numpy as np
 
 VERSION=2
-MUSIC_GAIN=.55
-VOICE_GAIN=1.25
+from runtime import CONFIG
+MUSIC_GAIN=CONFIG.get('musicGain',.55)
+VOICE_GAIN=CONFIG.get('voiceGain',1.25)
 
 def mix_tracks(source_vocals,instrumental,converted,rate):
     raw=np.asarray(source_vocals);music=np.asarray(instrumental);voice=np.asarray(converted)

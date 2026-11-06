@@ -1,4 +1,4 @@
-# dsh-singing 0.2.1
+# dsh-singing 0.3.0
 
 [English](README.en.md) · [更新记录](CHANGELOG.md) · [下载](https://github.com/MarcKeee1/dsh-singing/releases/latest)
 
@@ -6,11 +6,18 @@ DeepSeek Harness（DSH）的独立本地唱歌插件。输入歌名、歌手或 
 
 插件只提供唱歌功能，不附带人格、私人聊天记录、QQ 账号、API 密钥或预设人物音色。
 
+## 插件页设置
+
+安装后在 DSH 的插件管理中找到 **dsh-singing**，打开配置即可调整参考音频路径、普通/加长片段时长、自动升八度、人声/伴奏/和声音量和长间奏处理。另有发送方式、后端路径和超时设置。保存配置后用于后续任务；运行中的任务沿用启动时配置。
+
+设置改变会区分新合成的缓存；显式点选已有歌单仍播放原缓存，不会偷偷重唱。歌单同一歌名和歌手只显示时长最长的一份，其他片段保留用于精确点播；没有“短于30秒就隐藏”的规则。
+
 ## 功能
 
 - 支持只唱开头、副歌、开头到完整副歌、长一点、完整版和指定起点。普通点歌默认约 **45 秒**，“长一点”默认约 **90 秒**；这两种模式不先转写整首歌词。只有明确要求整首才使用完整版，指定时长仍按指定值处理。按原音源旋律做音色转换。
 - 歌手可省略，自动搜索尽量确认原唱；无法确认原唱或只有其他版本时先返回候选，确认后使用。标题没写歌手时会参考简介；明确提供的链接保留该版本。
 - 无法取得新音源时返回已缓存歌单；用户选序号后直接播放缓存，不重新合成。成功发出歌声后不补发歌名确认或旧音色提醒。
+- 将主唱与和声分别转为同一参考音色，保留两条声部的重叠和尾音时间，避免和声没结束就被下一句切断；两条声部分别接受音准检查。
 - 使用参考声音确定音色；低音占多数、升八度明显更接近参考音域时可整体升 12 个半音，音准校验会计入该移调。
 - 支持完整 BV 链接和 `b23.tv` 短链接；用户明确指定的翻唱、改编版本可用。
 - 查找顺序：**B 站 → 网易云 → QQ 音乐**；明确给出原曲链接时只使用指定版本。
@@ -27,7 +34,7 @@ DeepSeek Harness（DSH）的独立本地唱歌插件。输入歌名、歌手或 
 - DSH 0.2.1 或后续 0.2.x 稳定版；当前验证版本：0.2.1-rc.5。其他小版本的预发布版需另行核对兼容性。
 - Python **3.11**、FFmpeg；Node.js 22 以上用于打包和测试。
 - 首版以 Windows + NVIDIA CUDA 为主要验证环境。CPU 安装选项用于兼容和排查，速度明显较慢；Linux/macOS 尚未做完整歌声实测。
-- 固定模型约 2.6 GB，另需 Python/PyTorch 环境和缓存空间，建议至少预留 15 GB。
+- 固定模型约 2.7 GB，另需 Python/PyTorch 环境和缓存空间，建议至少预留 20 GB。
 - QQ 发送需要现有的 OneBot 插件、已连接的 NapCat，以及当前会话可调用的 `qq_send_voice`。
 
 PyTorch 使用已验证的 2.4.1 / CUDA 12.1 组合，安装命令参考 [PyTorch 官方版本说明](https://pytorch.org/get-started/previous-versions/)。模型转换基于 [Seed-VC](https://github.com/Plachtaa/seed-vc)。
@@ -42,7 +49,7 @@ PyTorch 使用已验证的 2.4.1 / CUDA 12.1 组合，安装命令参考 [PyTorc
 py -3.11 scripts/setup.py
 ```
 
-安装器会在 `~/.dsh/singing` 创建独立虚拟环境、下载固定版本模型和 Seed-VC，并逐项校验 SHA-256。不会修改已有 DSH profile，也不会替换 OneBot 插件。
+安装器会在 `~/.dsh/singing` 创建唱歌 `.venv` 和和声分离 `.venv-lead` 两个独立虚拟环境、下载固定版本模型和 Seed-VC，并逐项校验 SHA-256。不会修改已有 DSH profile，也不会替换 OneBot 插件。
 
 FFmpeg 不在 PATH 时：
 
@@ -82,11 +89,11 @@ py -3.11 scripts/setup.py --data-dir "D:/AI/dsh-singing" --torch cpu
 
 ### 3. 安装 DSH 插件
 
-使用发布页的 `dsh-singing-0.2.1.tgz`，或者自己打包：
+使用发布页的 `dsh-singing-0.3.0.tgz`，或者自己打包：
 
 ```powershell
 npm pack --ignore-scripts
-dsh plugin --profile <你的profile名> add ./dsh-singing-0.2.1.tgz
+dsh plugin --profile <你的profile名> add ./dsh-singing-0.3.0.tgz
 ```
 
 将 `<你的profile名>` 替换为实际 CLI profile。桌面版的 `desktop` profile 由 Electron 管理，请使用桌面插件管理入口安装本地包，不要用普通 CLI 强行改它。
@@ -170,3 +177,7 @@ QQ 音乐新增适配已做离线协议测试，平台在线可用性以实际�
 ## 许可证
 
 项目代码按 GPL-3.0-only 发布。第三方代码保留原许可证；模型权重各自适用其来源项目的条款，未打包到本仓库。参见 [LICENSE](LICENSE)、[NOTICE](NOTICE) 和 [第三方说明](docs/third-party.md)。
+
+## 从 0.2.x 升级
+
+更新源码并重新运行 `scripts/setup.py`，补齐独立分离环境和约53 MB的 KARA2 模型，再安装新 `.tgz`。配置和旧缓存保留；旧版转换结果不会冒充新版音色管线。参考音频和模型不包含在安装包内。双声部增加了计算量；已验证的分离结果和音高特征可复用。

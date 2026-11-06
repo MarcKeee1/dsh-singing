@@ -102,7 +102,9 @@ def find_performance(root, request, signature):
         except (OSError, ValueError, TypeError, KeyError, AttributeError):
             continue
     # Omitted artist must not silently select between different recordings.
-    if len({candidate[0] for candidate in candidates}) > 1:
+    # Multiple historical IDs may point to the exact same verified recording.
+    if (len({candidate[0] for candidate in candidates}) > 1
+            and len({candidate[5]['audioSha256'] for candidate in candidates}) > 1):
         return None
     if not candidates:
         return None

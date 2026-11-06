@@ -142,5 +142,13 @@
     "sha256": "8726e21a993978c7ba086d3872e7608d7d5bfca646ca4aca459ffda844faa8b4",
     "bytes": 84141911,
     "url": "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/955717e8-8726e21a.th"
+  },
+  {
+    "repo": "TRvlvr/model_repo",
+    "filename": "UVR_MDXNET_KARA_2.onnx",
+    "relativePath": "lead-vocal/UVR_MDXNET_KARA_2.onnx",
+    "sha256": "bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4",
+    "bytes": 52786726,
+    "url": "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/UVR_MDXNET_KARA_2.onnx"
   }
 ]

@@ -34,7 +34,8 @@ def request_position(request):
     # preserve omission as null, and explicitly mark the semantics version.
     start=request.get('start')
     if request.get('positionVersion')!=1 and start in (None,0):start=None
-    return position_spec(start,request.get('chorus_hint',''),request.get('lyric_occurrence',1))
+    occurrence=request.get('lyric_occurrence')
+    return position_spec(start,request.get('chorus_hint',''),1 if occurrence is None else occurrence)
 
 def bounds(start,total,duration=None):
     length=total-start if duration is None else float(duration)
