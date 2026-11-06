@@ -12,3 +12,4 @@ descript-audio-codec==1.0.0
 torch-stoi==0.2.3
 opencc-python-reimplemented==0.1.7
 qrcode==8.2
+pycryptodome==3.23.0
