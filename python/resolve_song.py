@@ -33,8 +33,13 @@ def get_json(url, form=None):
     if urllib.parse.urlparse(url).hostname == 'music.163.com':
         headers['Referer'] = 'https://music.163.com/'
     request = urllib.request.Request(url, data=data, headers=headers)
+    host = urllib.parse.urlparse(url).hostname
+    if host == 'music.163.com':
+        from netease_session import open_request, read_json
+        with open_request(ROOT, request) as response:
+            return read_json(response)
     from bili_session import open_request
-    opener=open_request(ROOT,request) if urllib.parse.urlparse(url).hostname=='api.bilibili.com' else urllib.request.urlopen(request,timeout=20)
+    opener=open_request(ROOT,request) if host=='api.bilibili.com' else urllib.request.urlopen(request,timeout=20)
     with opener as response:
         return json.load(response)
 
@@ -164,8 +169,10 @@ def download_full(info,song,artist):
 
 def resolve_netease(song,artist,source_url=''):
     if source_url:
-        parsed=urllib.parse.urlparse(source_url);ident=urllib.parse.parse_qs(parsed.query).get('id',[''])[0]
-        if parsed.hostname!='music.163.com' or parsed.path!='/song' or not ident.isdigit():raise ValueError('请提供网易云单曲链接')
+        parsed=urllib.parse.urlparse(source_url)
+        page=urllib.parse.urlparse(parsed.fragment) if parsed.fragment.startswith('/song?') else parsed
+        ident=urllib.parse.parse_qs(page.query).get('id',[''])[0]
+        if parsed.hostname!='music.163.com' or page.path not in {'/song','/m/song'} or not ident.isdigit():raise ValueError('请提供网易云单曲链接')
         tracks=get_json('https://music.163.com/api/song/detail/?'+urllib.parse.urlencode({'ids':'['+ident+']','id':ident})).get('songs',[])
     else:
         search=get_json('https://music.163.com/api/search/get/web',{'s':artist+' '+song,'type':1,'limit':30,'offset':0})
@@ -178,13 +185,16 @@ def resolve_netease(song,artist,source_url=''):
         if total<5:continue
         play=get_json('https://music.163.com/api/song/enhance/player/url',{'ids':json.dumps([track['id']]),'br':128000})
         row=(play.get('data') or [{}])[0]
-        if row.get('code')!=200 or not row.get('url') or row.get('freeTrialInfo') or row.get('fee') in (1,4):continue
+        # fee describes the catalog tier, not the logged-in account's entitlement.
+        # Use only the URL the platform actually grants; previews remain rejected
+        # here and download_full independently checks the complete decoded duration.
+        if row.get('code')!=200 or not row.get('url') or row.get('freeTrialInfo'):continue
         lyrics=get_json('https://music.163.com/api/song/lyric?'+urllib.parse.urlencode({'id':track['id'],'lv':1,'kv':1,'tv':-1}))
         return download_full({'url':row['url'],'total':total,'songId':'netease:'+str(track['id']),
             'sourcePage':'https://music.163.com/song?id='+str(track['id']),'sourceProvider':'netease',
             'referer':'https://music.163.com/','domains':['.music.126.net','.vod.126.net'],
             'lyricLines':timed_lines((lyrics.get('lrc') or {}).get('lyric',''))},song or track.get('name',''),artist or ' / '.join(a.get('name','') for a in artists))
-    raise ValueError('网易云未找到版本相符、可公开完整播放的音轨')
+    raise ValueError('网易云未找到版本相符、当前账号可完整播放的音轨；可检查网易云登录状态或指定单曲链接')
 
 
 PROVIDER_ORDER=('bilibili','netease','qqmusic')
