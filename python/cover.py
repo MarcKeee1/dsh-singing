@@ -81,7 +81,7 @@ def main(request, cache_only=False):
         'positionRequest':position,'selection':selection,'chorusMethod':selection['method'],'sourceComplete':mode=='full'}
     job = ROOT / 'jobs' / str(uuid.uuid4())
     job.mkdir(parents=True)
-    env = {**os.environ, 'PYTHONIOENCODING': 'utf-8', 'OMP_NUM_THREADS': '4',
+    env = {**os.environ, 'DSH_SINGING_CACHE_ROOT':str(ROOT),'DSH_SINGING_CODE_DIR':str(CODE_DIR),'PYTHONIOENCODING': 'utf-8', 'OMP_NUM_THREADS': '4',
            'TORCH_HOME': str(MODELS / 'torch'), 'PATH': str(pathlib.Path(FFMPEG).parent) + os.pathsep + os.environ.get('PATH', '')}
 
     def run(command, timeout=900):
@@ -132,16 +132,6 @@ def main(request, cache_only=False):
         if voice_signature()[0] != signature:
             raise RuntimeError('Speaking voice changed during reference creation; retry after it is settled')
         run([FFMPEG, '-v', 'error', '-y', '-i', str(spoken), '-t', str(REFERENCE_SECONDS), '-ar', '44100', '-ac', '1', str(reference)], 30)
-    if reusable:
-        shutil.copytree(reusable['job']/'separated',job/'separated')
-    else:
-        run([sys.executable, '-m', 'demucs.separate', '-n', 'htdemucs', '--two-stems', 'vocals',
-             '--shifts', '0', '--segment', '7', '-d', 'cpu', '-o', str(job / 'separated'), str(normalized)], max(1200,duration*20))
-    separated = job / 'separated/htdemucs/source'
-    vocals = separated / 'vocals.wav'
-    raw, sr = sf.read(vocals, always_2d=True)
-    if np.sqrt(np.mean(raw ** 2)) < 0.001:
-        raise ValueError('This excerpt contains too little singing; choose an actual vocal passage')
     # The host serializes its GPU jobs. Also avoid interrupting external ComfyUI work.
     try:
         if not CONFIG['comfyUrl']:raise OSError('Comfy coordination disabled')
@@ -156,14 +146,12 @@ def main(request, cache_only=False):
             free = urllib.request.Request(CONFIG['comfyUrl']+'/free',
                 data=b'{"unload_models":true,"free_memory":true}',headers={'Content-Type':'application/json'})
             with urllib.request.urlopen(free,timeout=15) as response:response.read()
-    run([sys.executable,str(CODE_DIR/'pitch_register.py'),'--source',str(vocals),'--reference',str(reference),'--out',str(job/'register.json')],max(180,duration*2))
+    run([sys.executable,str(CODE_DIR/'singing_worker.py'),'--job',str(job),'--reference',str(reference)],max(1200,duration*40))
     register=json.loads((job/'register.json').read_text());pitch_shift=register['semitones']
-    run([sys.executable, str(CODE_DIR / 'run-seed.py'), '--source', str(vocals), '--target', str(reference),
-         '--outdir', str(job / 'converted'), '--steps', '40','--pitch-shift',str(pitch_shift)], max(1200,duration*30))
-    made = list((job / 'converted').glob('*.wav'))
-    if len(made) != 1:
-        raise RuntimeError('Expected exactly one converted singing track')
-    run([sys.executable, str(CODE_DIR / 'pitch_check.py'), '--source', str(vocals), '--converted', str(made[0]), '--out', str(job / 'pitch.json'),'--expected-shift',str(pitch_shift)], max(300,duration*5))
+    separated=job/'separated/htdemucs/source';vocals=job/'lead/lead.wav'
+    raw,sr=sf.read(vocals,always_2d=True)
+    made=list((job/'converted').glob('*.wav'))
+    if len(made)!=1:raise RuntimeError('Expected exactly one converted singing track')
     quality = json.loads((job / 'pitch.json').read_text(encoding='utf-8'))
     if quality.get('voicedFrames', 0) < max(200, int(info.duration * 100 * .15)):
         raise ValueError('这段可辨认的歌声太少，本次没有发送')
@@ -173,13 +161,14 @@ def main(request, cache_only=False):
     converted, rate = sf.read(made[0], always_2d=True)
     if sr != rate:
         raise RuntimeError('Sample rate mismatch')
-    mixed,mix_settings=mix_tracks(raw,instrumental,converted,sr)
+    from harmony_vocal import mix_job
+    mixed,mix_settings,gap_reference,sr=mix_job(job)
     master_hash=None
     if mode=='full':
         master=cached_audio.with_suffix('.master.wav')
         sf.write(master,mixed,sr,subtype='PCM_24')
         master_hash=hashlib.sha256(master.read_bytes()).hexdigest()
-    mixed,gap_edits=edit_mix(mixed,raw,sr)
+    mixed,gap_edits=edit_mix(mixed,gap_reference,sr)
     sf.write(job / 'mixed.wav', mixed, sr, subtype='PCM_24')
     output.parent.mkdir(parents=True, exist_ok=True)
     run([FFMPEG, '-v', 'error', '-y', '-i', str(job / 'mixed.wav'), '-c:a', 'libmp3lame', '-b:a', '128k',
@@ -188,9 +177,13 @@ def main(request, cache_only=False):
     result = {'ok': True, 'path': str(output), 'song': str(request.get('title', ''))[:160],
               'seconds': round(len(mixed)/sr, 2), 'quality': quality, 'voiceSignature': signature,
               'gapEditVersion': GAP_VERSION, 'gapEdits': gap_edits, 'mixVersion': MIX_VERSION, 'mixSettings': mix_settings,
-              'voiceSettings': settings, 'pitchRegister':register,'elapsedSeconds': round(time.monotonic() - started, 2),
-              'job': str(job), 'sentToQQ': False, 'sourceStemsReused':reusable is not None}
-    result.update({'masterSha256':master_hash,'normalizedSha256':hashlib.sha256(normalized.read_bytes()).hexdigest(),'vocalSha256':hashlib.sha256(vocals.read_bytes()).hexdigest(),'sourceInfo': resolved, 'cacheHit': False, 'requestSpec': request_spec(request), 'audioSha256': hashlib.sha256(output.read_bytes()).hexdigest()})
+              'voiceSettings': settings, 'pitchRegister':register,'stages':json.loads((job/'stages.json').read_text()),'elapsedSeconds': round(time.monotonic() - started, 2),
+              'job': str(job), 'sentToQQ': False, 'sourceStemsReused':json.loads((job/'stages.json').read_text()).get('stemCacheHit',False)}
+    result['harmonyProcessing']=result['stages']['harmonyProcessing']
+    result['leadVocal']=json.loads((job/'lead/lead.json').read_text(encoding='utf-8'))
+    result['rawVocalSha256']=hashlib.sha256((separated/'vocals.wav').read_bytes()).hexdigest()
+    result['generationElapsedSeconds']=result['elapsedSeconds']
+    result.update({'masterSha256':master_hash,'normalizedSha256':hashlib.sha256(normalized.read_bytes()).hexdigest(),'vocalSha256':hashlib.sha256((separated/'vocals.wav').read_bytes()).hexdigest(),'sourceInfo': resolved, 'cacheHit': False, 'requestSpec': request_spec(request), 'audioSha256': hashlib.sha256(output.read_bytes()).hexdigest()})
     (job / 'result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
     shutil.copyfile(output, cached_audio)
     cached_record.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')

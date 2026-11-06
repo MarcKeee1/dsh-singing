@@ -1,5 +1,5 @@
 """Local configuration shared by the resolver and isolated model workers."""
-import json,os,pathlib,shutil
+import json,os,pathlib,shutil,math
 
 CODE_DIR=pathlib.Path(__file__).resolve().parent
 PROJECT_DIR=CODE_DIR.parent
@@ -10,11 +10,21 @@ def load_config(path=CONFIG_FILE):
     try:config=json.loads(path.read_text(encoding='utf-8-sig'))
     except FileNotFoundError:raise ValueError('Singing backend is not configured; run scripts/setup.py first') from None
     if not isinstance(config,dict):raise ValueError('Backend config must be an object')
+    overrides=json.loads(os.environ.get('DSH_SINGING_UI_SETTINGS','{}'))
+    allowed={'referenceAudio','autoOctave','voiceGain','musicGain','harmonyGain','shortenGaps'}
+    if not isinstance(overrides,dict) or set(overrides)-allowed:raise ValueError('Invalid plugin settings')
+    config.update(overrides)
+    for key in ('autoOctave','shortenGaps'):
+        config.setdefault(key,True)
+        if not isinstance(config[key],bool):raise ValueError('Invalid boolean setting: '+key)
+    for key,default,low,high in [('voiceGain',1.25,.1,3),('musicGain',.55,.05,2),('harmonyGain',.8,0,1.5)]:
+        config.setdefault(key,default);value=config[key]
+        if isinstance(value,bool) or not isinstance(value,(float,int)) or not math.isfinite(value) or not low<=value<=high:raise ValueError('Invalid gain setting: '+key)
     def location(key,default):
         p=pathlib.Path(config.get(key) or default).expanduser()
         return p.resolve() if p.is_absolute() else (path.parent/p).resolve()
     data=location('dataDir',path.parent)
-    config.update(dataDir=data,modelsDir=location('modelsDir',data/'models'),vendorDir=location('vendorDir',data/'vendor/seed-vc'),
+    config.update(dataDir=data,modelsDir=location('modelsDir',data/'models'),vendorDir=location('vendorDir',data/'vendor/seed-vc'),leadPython=location('leadPython',data/'.venv-lead'/('Scripts/python.exe' if os.name=='nt' else 'bin/python')),
                   outputDir=location('outputDir',data/'output'),referenceAudio=location('referenceAudio',data/'voice/reference.wav'))
     ffmpeg=str(config.get('ffmpeg') or 'ffmpeg')
     executable=shutil.which(ffmpeg)

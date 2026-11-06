@@ -1,5 +1,5 @@
 """Verified, public-source recordings that can be played without a model or network."""
-import hashlib,json,math,pathlib,re,shutil,urllib.parse
+import hashlib,json,math,pathlib,re,shutil,urllib.parse,time,html,unicodedata
 import soundfile as sf
 
 PAGE_SIZE=12
@@ -32,25 +32,33 @@ def verified(root,cache_id,max_bytes=20*1024*1024):
 
 def catalog(root,signature=None,offset=0,max_bytes=20*1024*1024):
     if isinstance(offset,bool) or not isinstance(offset,int) or offset<0:raise ValueError('歌单分页位置无效')
-    directory=pathlib.Path(root)/'performance-cache';selected={}
+    directory=pathlib.Path(root)/'performance-cache';selected={};valid_count=0
+    identity_text=lambda value: re.sub(r'\s+','',unicodedata.normalize('NFKC',html.unescape(value))).casefold()
     for meta in directory.glob('*.json'):
         try:
             audio,record,item=verified(root,meta.stem,max_bytes)
+            valid_count+=1
             sig=record.get('voiceSignature')
             item['voice']='当前音色' if signature and sig==signature else '以前保存的音色'
-            source=record['sourceInfo'];identity=(item['song'].casefold(),item['artist'].casefold(),str(source['songId']),sig)
-            rank=(item['segment']=='整首',item['seconds'],meta.stat().st_mtime)
+            # The menu shows one long recording per song/artist. Other versions
+            # remain available to exact source/position requests and cache IDs.
+            identity=(identity_text(item['song']),identity_text(item['artist']))
+            rank=(item['seconds'],sig==signature,item['segment']=='整首',meta.stat().st_mtime)
             if identity not in selected or rank>selected[identity][0]:selected[identity]=(rank,item)
         except (OSError,ValueError,TypeError,KeyError,AttributeError,RuntimeError):continue
-    items=sorted((row[1] for row in selected.values()),key=lambda x:(x['voice']!='当前音色',x['song'].casefold(),x['artist'].casefold(),x['cacheId']))
+    items=sorted((row[1] for row in selected.values()),key=lambda x:(-x['seconds'],x['song'].casefold(),x['artist'].casefold(),x['cacheId']))
     page=[{**item,'number':offset+i+1} for i,item in enumerate(items[offset:offset+PAGE_SIZE])]
     return {'ok':True,'kind':'cached_song_catalog','total':len(items),'offset':offset,'items':page,
+        'hiddenCount':valid_count-len(items),
         'nextOffset':offset+len(page) if offset+len(page)<len(items) else None}
 
 def materialize(root,cache_id,output,signature=None,max_bytes=20*1024*1024):
+    started=time.monotonic()
     audio,record,item=verified(root,cache_id,max_bytes)
     output=pathlib.Path(output);output.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(audio,output)
     # The caller must fence outputDir; this helper never accepts a source path.
     return {**record,'ok':True,'path':str(output),'seconds':item['seconds'],'song':item['song'],
         'cacheHit':True,'cacheMode':'selected_cached_recording','selectedCache':item,
+        'generationElapsedSeconds':record.get('generationElapsedSeconds',record.get('elapsedSeconds')),
+        'elapsedSeconds':round(time.monotonic()-started,3),
         'cachedVoice':'当前音色' if signature and record.get('voiceSignature')==signature else '以前保存的音色','sentToQQ':False}

@@ -52,6 +52,8 @@ def apply_plan(wave,rate,plan):
     return out
 
 def edit_mix(mixed,vocals,rate):
+    from runtime import CONFIG
+    if not CONFIG.get('shortenGaps',True):return mixed,{'version':VERSION,'inputSeconds':len(mixed)/rate,'outputSeconds':len(mixed)/rate,'removedSeconds':0,'cuts':[],'disabled':True}
     plan=plan_gaps(vocals,rate);out=apply_plan(mixed,rate,plan)
     plan.update({'outputSeconds':round(len(out)/rate,4),'removedSeconds':round((len(mixed)-len(out))/rate,4)})
     return out,plan
@@ -73,12 +75,16 @@ def cached_edited(audio,record,root,ffmpeg):
     if not vocals.is_file() or not music.is_file() or len(converted)!=1:return audio,{**record,'mixingStatus':'old_stems_unavailable'}
     raw,rate=sf.read(vocals,always_2d=True);instrumental,music_rate=sf.read(music,always_2d=True);voice,voice_rate=sf.read(converted[0],always_2d=True)
     if rate!=music_rate or rate!=voice_rate:raise ValueError('缓存歌声采样率不一致')
-    mixed,settings=mix_tracks(raw,instrumental,voice,rate)
+    if record.get('harmonyProcessing',{}).get('version'):
+        from harmony_vocal import mix_job
+        mixed,settings,raw,rate=mix_job(job)
+    else:
+        mixed,settings=mix_tracks(raw,instrumental,voice,rate)
     mixed,plan=edit_mix(mixed,raw,rate)
     wav=directory/(key+'.tmp.wav');partial=directory/(key+'.part.mp3')
     sf.write(wav,mixed,rate,subtype='PCM_24')
     try:
-        done=subprocess.run([ffmpeg,'-v','error','-y','-i',str(wav),'-c:a','libmp3lame','-b:a','128k','-metadata','comment=AI singing voice conversion; vocal-forward mix; long instrumental gaps shortened',str(partial)],capture_output=True,timeout=60,creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
+        done=subprocess.run([ffmpeg,'-v','error','-y','-i',str(wav),'-c:a','libmp3lame','-b:a','128k','-metadata','comment=AI singing voice conversion; vocal-forward mix; long instrumental gaps shortened',str(partial)],capture_output=True,timeout=60,creationflags=subprocess.CREATE_NO_WINDOW)
         if done.returncode:raise ValueError('歌声混音编码失败，本次未发送')
         partial.replace(edited)
     finally:
