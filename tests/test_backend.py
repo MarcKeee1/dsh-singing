@@ -8,6 +8,42 @@ import bili_source as b,song_position as p,performance_library as library,runtim
 import selection,resolve_song,public_providers
 
 class BackendTests(unittest.TestCase):
+ def test_each_new_song_lookup_is_independent_of_old_bili_lockout(self):
+  import time
+  with tempfile.TemporaryDirectory() as folder:
+   local=pathlib.Path(folder);state=local/'bilibili-access-cooldown.json'
+   state.write_text(json.dumps({'until':time.time()+1800,'reason':'access_denied'}))
+   before=state.read_bytes()
+   denied=urllib.error.HTTPError('https://api.bilibili.com',412,'denied',{},None)
+   wrapped=b.BiliSourceError('B站拒绝本次访问');wrapped.__cause__=denied
+   bili=unittest.mock.Mock(side_effect=[wrapped,{'sourceProvider':'bilibili'}])
+   providers={'bilibili':bili,'netease':lambda:{'sourceProvider':'netease'}}
+   with patch.object(resolve_song,'ROOT',local):
+    first=resolve_song.resolve_uncached('Test','Artist',providers=providers)
+    second=resolve_song.resolve_uncached('Test','Artist',providers=providers)
+   self.assertEqual(first['sourceProvider'],'netease')
+   self.assertEqual(first['sourceAttempts'][0]['status'],'access_denied')
+   self.assertEqual(second['sourceProvider'],'bilibili')
+   self.assertEqual(bili.call_count,2)
+   self.assertEqual(state.read_bytes(),before)
+ def test_netease_resolver_uses_saved_login_transport(self):
+  import io,netease_session
+  with patch.object(netease_session,'open_request',return_value=io.BytesIO(b'{"code":200}')) as opening,patch.object(resolve_song.urllib.request,'urlopen',side_effect=AssertionError('anonymous transport')):
+   self.assertEqual(resolve_song.get_json('https://music.163.com/api/search/get/web',{'s':'Test'}),{'code':200})
+   self.assertEqual(opening.call_args.args[0],resolve_song.ROOT)
+ def test_netease_entitled_full_track_is_allowed_but_preview_stays_rejected(self):
+  track={'id':123,'name':'Test','duration':180000,'artists':[{'name':'Artist'}]}
+  def fetch(url,form=None):
+   if '/detail/' in url:return {'songs':[track]}
+   if '/player/url' in url:return {'data':[{'code':200,'fee':1,'url':'https://m10.music.126.net/audio.mp3','freeTrialInfo':None}]}
+   return {'lrc':{'lyric':''}}
+  with patch.object(resolve_song,'get_json',side_effect=fetch),patch.object(resolve_song,'download_full',return_value={'verified':'full'}) as download:
+   self.assertEqual(resolve_song.resolve_netease('Test','Artist','https://music.163.com/#/song?id=123'),{'verified':'full'})
+   self.assertEqual(download.call_args.args[0]['total'],180)
+  preview={'data':[{'code':200,'fee':1,'url':'https://m10.music.126.net/trial.mp3','freeTrialInfo':{'start':0,'end':30000}}]}
+  with patch.object(resolve_song,'get_json',side_effect=[{'songs':[track]},preview]),patch.object(resolve_song,'download_full') as download:
+   with self.assertRaisesRegex(ValueError,'当前账号'):resolve_song.resolve_netease('Test','Artist','https://music.163.com/song?id=123')
+   download.assert_not_called()
  def test_opening_through_chorus_and_long_are_distinct(self):
   lines=[(12,'开头第一句'),(25,'开头第二句'),(40,'开头第三句'),(55,'主歌末句'),(70,'重复的副歌甲'),(80,'重复的副歌乙'),(90,'重复的副歌丙'),(100,'重复的副歌丁'),(110,'桥段甲'),(140,'桥段乙'),(190,'重复的副歌甲'),(200,'重复的副歌乙'),(210,'重复的副歌丙'),(220,'重复的副歌丁'),(230,'尾声')]
   kwargs={'source':'unused','total':260,'metadata':{'songId':'fixture','lyricLines':lines},'root':root,'ffmpeg':'unused'}
