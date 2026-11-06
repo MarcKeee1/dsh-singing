@@ -1,6 +1,6 @@
 {
   "name": "dsh-singing",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Local singing voice conversion for DeepSeek Harness, with song lookup, excerpt positioning and optional OneBot delivery",
   "type": "module",
   "main": "lib/index.js",

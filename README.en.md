@@ -223,6 +223,8 @@ Use the backend environment to run `scripts/bilibili-login.py --data-dir <your-b
 
 ## Optional NetEase sign-in
 
+For chorus selection on a recording without timed lyrics, the backend may obtain a same-song, same-artist NetEase reference. It maps that timeline only after three separate audio windows confirm the same recording and a stable offset. The selected audio is preserved, the verified alignment is cached by its hash, and mismatched recordings fall back to local transcription. Narrow OST credit annotations are accepted without treating live, DJ or cover versions as studio originals.
+
 Run `scripts/netease-login.py --data-dir <your-backend-data-directory> --scan` with the backend environment (`pythonw` on Windows). Scan and confirm using your own NetEase Cloud Music app. The window also checks and removes the saved session. Windows credentials use current-user DPAPI; other systems use a mode-0600 local file. Only official NetEase HTTPS API calls receive the cookies, never media CDNs, other services, QQ or model messages. No DSH restart is needed.
 
 Search, lyrics and playback requests use the saved account. Playback remains subject to the account's normal access; previews and incomplete audio are rejected. Explicit NetEase song links, including `/#/song?id=...`, select NetEase directly. Automatic provider order remains Bilibili, NetEase, QQ Music. Closing the window or expiry stops QR polling. `--status` reports validity without exposing account details or credentials. Do not publish `.auth`.
