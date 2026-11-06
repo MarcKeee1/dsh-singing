@@ -18,6 +18,17 @@ async function fixture(t,delivery='auto'){
   return {tools,agent,turns,config,run,exec,action:createAction({tools},config,turns,{run}),counts:()=>({reads,sends})};
 }
 const args={song:'A song',artist:'Selected performer'};
+
+test('explicit full user intent reaches the backend without a ninety-second duration',async t=>{
+ const f=await fixture(t,'file');let request;
+ const action=createAction({tools:f.tools},f.config,f.turns,{intentText:()=> '唱这首歌的完整版',run:async(...a)=>{request=JSON.parse(await readFile(a[0],'utf8'));return {...await f.run(...a),seconds:240}}});
+ assert.equal((await action({...args,mode:'long',duration_seconds:90},f.exec)).seconds,240);assert.equal(request.mode,'full');assert.equal(request.duration,null);
+});
+test('stage-specific failures remain visible to the agent',async t=>{
+ const f=await fixture(t,'file'),error=Object.assign(Error('有效人声太少'),{result:{failureStage:'vocal_validation',failureCode:'no_usable_vocals',note:'按实际阶段解释'}});
+ const action=createAction({tools:f.tools},f.config,f.turns,{run:async()=>{throw error}});const result=await action(args,f.exec);
+ assert.equal(result.failureStage,'vocal_validation');assert.equal(result.failureCode,'no_usable_vocals');assert.equal(result.note,'按实际阶段解释');assert.equal(f.counts().sends,0);
+});
 test('full song and from-position requests have no 90-second ceiling',()=>{
   assert.equal(validate(args).duration,45);
   assert.equal(validate({...args,mode:'long'}).duration,90);

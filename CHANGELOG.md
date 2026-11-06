@@ -1,5 +1,14 @@
 # 更新记录 / Changelog
 
+## 0.3.2 — Full-song intent and source reuse / 完整版意图与原音源复用
+
+- 混合音域歌曲也逐句判断0/+12：不再要求整首先被判为升八度，低音句与高音句分别处理。支持旧版分句记录，关闭自动八度时保留原调。
+- “完整版”“完整版本”“整首”“全曲”“全部唱完”统一为 full；不能直接拿片段缓存代替。选择短缓存并要求整首时，保留该版本的歌名、歌手与来源。
+- 优先复用已成功演唱且哈希核验通过的完整原音源，减少重复搜索；明确指定的新版本与不同歌手仍严格区分。
+- 返回实际失败阶段和原因，区分有效人声不足、分离、换声与音准失败，不根据歌长猜测。
+- 较大的长歌结果 JSON 不再被截断为无效响应；保留完整结果并设置明确的资源边界。
+- Full-song wording and cached-excerpt protection, verified original-source reuse, stage-specific failures, and complete long-song result capture.
+
 ## 0.3.1 — Phrase register / 分句八度判断
 
 - 低音歌曲升八度后，主唱和和声各自检查已经偏高的句子；高音段保持原音域，低音段继续升八度。

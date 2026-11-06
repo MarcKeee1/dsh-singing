@@ -84,12 +84,16 @@ def main(request, cache_only=False):
     env = {**os.environ, 'DSH_SINGING_CACHE_ROOT':str(ROOT),'DSH_SINGING_CODE_DIR':str(CODE_DIR),'PYTHONIOENCODING': 'utf-8', 'OMP_NUM_THREADS': '4',
            'TORCH_HOME': str(MODELS / 'torch'), 'PATH': str(pathlib.Path(FFMPEG).parent) + os.pathsep + os.environ.get('PATH', '')}
 
+    from singing_failure import from_job
+    (job/'source-info.json').write_text(json.dumps(resolved,ensure_ascii=False,indent=2),encoding='utf-8')
     def run(command, timeout=900):
         with (job / 'worker.log').open('a', encoding='utf-8') as log:
-            result = subprocess.run(command, stdout=log, stderr=log, env=env, timeout=timeout,
+            try:
+                result = subprocess.run(command, stdout=log, stderr=log, env=env, timeout=timeout,
                                     creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0), cwd=ROOT)
+            except subprocess.TimeoutExpired as error:raise from_job(job,timeout=True) from error
         if result.returncode:
-            raise RuntimeError('Singing stage failed; diagnostic log: ' + str(job / 'worker.log'))
+            raise from_job(job)
 
     normalized = job / 'source.wav'
     if reusable and start==0 and abs(sf.info(source).duration-duration)<.1:
@@ -156,7 +160,7 @@ def main(request, cache_only=False):
     if quality.get('voicedFrames', 0) < max(200, int(info.duration * 100 * .15)):
         raise ValueError('这段可辨认的歌声太少，本次没有发送')
     if not quality.get('passed'):
-        raise RuntimeError('Pitch/timing check did not pass; output withheld. See ' + str(job / 'pitch.json'))
+        raise from_job(job,'quality')
     instrumental, _ = sf.read(separated / 'no_vocals.wav', always_2d=True)
     converted, rate = sf.read(made[0], always_2d=True)
     if sr != rate:
@@ -215,7 +219,8 @@ if __name__ == '__main__':
             detail = '查找原曲超时；这次没有唱成，请稍后再试'
         elif 'diagnostic log:' in detail:
             detail = '本地歌声处理失败，本次没有发送'
-        result = {'ok': False, 'error': detail}
+        from singing_failure import public_details
+        result = {'ok': False, 'error': detail,**public_details(error)}
         from source_choice import SourceChoiceRequired
         if isinstance(error,SourceChoiceRequired):result.update(needsConfirmation=True,alternatives=error.options,note='先自然询问用户是否接受其中一个其他或歌手未注明的版本；未同意前不下载、不演唱，不自己选歌手。用户明确选择后再传对应 source_url。')
         request_path = pathlib.Path(args.request).resolve()
