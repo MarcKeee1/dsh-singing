@@ -18,12 +18,20 @@ def main():
     data=args.data_dir.expanduser().resolve();data.mkdir(parents=True,exist_ok=True)
     envdir=data/'.venv';python=envdir/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
     if not python.is_file():venv.EnvBuilder(with_pip=True).create(envdir)
+    leadenv=data/'.venv-lead';leadpython=leadenv/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
+    if not leadpython.is_file():venv.EnvBuilder(with_pip=True).create(leadenv)
     def run(*command):subprocess.run(list(map(str,command)),check=True,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
     if not args.skip_deps:
         run(python,'-m','pip','install','--upgrade','pip')
-        run(python,'-m','pip','install','torch==2.4.1','torchaudio==2.4.1','--index-url','https://download.pytorch.org/whl/'+args.torch)
+        run(python,'-m','pip','install','torch==2.4.1','torchaudio==2.4.1','torchvision==0.19.1','--index-url','https://download.pytorch.org/whl/'+args.torch)
         run(python,'-m','pip','install','-r',PROJECT/'requirements.txt','-c',PROJECT/'constraints.txt')
         run(python,'-m','pip','check')
+        # ONNX requires newer protobuf than descript-audiotools; keep this
+        # worker genuinely isolated rather than mixing incompatible packages.
+        run(leadpython,'-m','pip','install','--upgrade','pip')
+        run(leadpython,'-m','pip','install','torch==2.4.1','torchaudio==2.4.1','torchvision==0.19.1','--index-url','https://download.pytorch.org/whl/'+args.torch)
+        run(leadpython,'-m','pip','install','-r',PROJECT/'requirements-lead.txt','-c',PROJECT/'constraints.txt',('onnxruntime-gpu' if args.torch=='cu121' else 'onnxruntime')+'==1.20.2')
+        run(leadpython,'-m','pip','check')
     vendor=install_vendor(data)
     models=(args.models_dir or data/'models').expanduser().resolve()
     if not args.skip_models:install_models(models)
@@ -31,6 +39,7 @@ def main():
     current=json.loads(config.read_text(encoding='utf-8-sig')) if config.exists() else {}
     output=pathlib.Path(os.environ.get('DSH_HOME',str(pathlib.Path.home()/'.dsh')))/'media/onebot/voice'
     current.update(dataDir=str(data),modelsDir=str(models),vendorDir=str(vendor),ffmpeg=ffmpeg)
+    current['leadPython']=str(leadpython)
     current.setdefault('outputDir',str(output));current.setdefault('allowedSourceRoots',[])
     current.setdefault('referenceAudio',str(data/'voice/reference.wav'));current.setdefault('comfyUrl','');current.setdefault('unloadComfy',False)
     if args.reference_audio:current['referenceAudio']=str(args.reference_audio.expanduser().resolve(strict=True))
