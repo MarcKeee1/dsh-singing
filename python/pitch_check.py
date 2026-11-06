@@ -41,11 +41,24 @@ def compare_pitch(source, converted, expected_shift=0):
     return result
 
 
-def check(source_path, converted_path, expected_shift=0):
+def check(source_path, converted_path, expected_shift=0, register_profile=None):
     from pitch_features import extract
     source_f0,source_samples=extract(source_path)
     converted_f0,converted_samples=extract(converted_path)
-    result = compare_pitch(source_f0, converted_f0,expected_shift)
+    from phrase_register import apply as apply_register,local_quality
+    expected=apply_register(source_f0,register_profile,expected_shift)
+    result = compare_pitch(expected, converted_f0,0)
+    result['expectedShiftSemitones']=expected_shift
+    if register_profile and register_profile['intervals']:
+        result['phraseRegister']=register_profile
+        local=[]
+        for interval in register_profile['intervals']:
+            a,b=interval['startFrame'],min(interval['endFrame'],len(converted_f0))
+            if int((expected[a:b]>50).sum())<20:continue
+            quality=local_quality(compare_pitch(expected[a:b],converted_f0[a:b],0))
+            local.append({'startSeconds':a/100,'endSeconds':b/100,**quality})
+        result['phraseChecks']=local
+        if any(q['assessed'] and not q['passed'] for q in local):result['passed']=False
     result['sourceSeconds'] = round(source_samples / 16000, 4)
     result['convertedSeconds'] = round(converted_samples / 16000, 4)
     result['durationDifferenceMs'] = round(abs(source_samples - converted_samples) / 16, 2)

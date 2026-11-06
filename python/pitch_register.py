@@ -1,4 +1,4 @@
-"""Choose one consistent octave from voiced pitch, preserving key and intervals."""
+"""Choose the base octave; phrase_register protects already-high phrases."""
 import argparse,json,math,pathlib,sys
 import numpy as np
 VERSION=2
@@ -15,8 +15,8 @@ def choose_register(source_f0,reference_f0):
     upper_pitch=float(np.percentile(source,90))
     result.update(sourceMedianHz=round(original,2),referenceMedianHz=round(target,2),lowVoiceFraction=round(low_fraction,3),
                   lowRegisterFraction=round(low_register_fraction,3),sourceP90Hz=round(upper_pitch,2),referenceGapSemitones=round(gap,2))
-    # Only lift by a full octave, consistently for the entire song. Do not
-    # retune individual notes or move the accompaniment into a different key.
+    # Choose only 0 or +12 for the base register. The separate phrase pass
+    # can retain already-high phrases; accompaniment and timing stay fixed.
     if gap>=8 and low_fraction>=.65 and abs(gap)-abs(gap-12)>=4:
         result.update(semitones=12,reason='low_source_register_relative_to_reference')
     elif target>=175 and gap>=3 and original<=170 and low_register_fraction>=.65 and upper_pitch<=260:
