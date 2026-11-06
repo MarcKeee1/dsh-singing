@@ -1,5 +1,13 @@
 # 更新记录 / Changelog
 
+## 0.3.1 — Phrase register / 分句八度判断
+
+- 低音歌曲升八度后，主唱和和声各自检查已经偏高的句子；高音段保持原音域，低音段继续升八度。
+- 根据实际音高和参考音域判断，不依赖歌名或歌手；短噪声与颤音不反复切换八度。
+- 转换和音准检查使用同一份明确的分句移调记录；局部检查仍不折叠八度，伴奏和时间轴保持原位。
+- 主唱与和声分别生成分句记录；关闭自动八度时按原调演唱。新增规则测试覆盖混合音域、和声、颤音、静音和错误记录。
+- Check already-high phrases independently for lead and backing vocals before applying an octave lift; verify against the recorded per-phrase target without octave folding.
+
 ## 0.3.0 — Configurable dual-vocal singing / 可配置双声部演唱
 
 - DSH 原生插件配置：参考音频、默认时长、自动八度、三种音量和间奏开关；设置传递到实际工作进程并纳入缓存指纹。
