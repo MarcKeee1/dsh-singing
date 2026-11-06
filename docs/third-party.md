@@ -25,7 +25,9 @@ Seed-VC 固定提交：`51383efd921027683c89e5348211d93ff12ac2a8`。修改仅涉
 
 - [QQ 音乐歌曲详情与公开播放地址](https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/qqmusic.py)
 
-本项目没有打包 yt-dlp，也不接入 cookies、会员凭据、付费解锁或地域代理。
+本项目没有打包 yt-dlp，也不提供付费解锁或地域代理。可选的 B 站和网易云登录由用户本人扫码授权，Cookie 仅用于各自官方接口，保存在本机，不进入模型上下文或发布包。
+
+网易云二维码和普通网页请求格式参考 [NeteaseCloudMusicApiEnhanced](https://github.com/neteasecloudmusicapienhanced/api-enhanced) 的公开接口实现；不捆绑或运行该项目的服务。AES/RSA 编码使用 Python 依赖 [PyCryptodome](https://www.pycryptodome.org/) 3.23.0（BSD / Public Domain），直接请求网易云官方 HTTPS 网页接口。
 
 ## 0.3.0 和声分离
 
