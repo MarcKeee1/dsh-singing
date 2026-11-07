@@ -61,7 +61,7 @@ def edit_mix(mixed,vocals,rate):
 def cached_edited(audio,record,root,ffmpeg):
     if record.get('gapEditVersion')==VERSION and record.get('mixVersion')==MIX_VERSION:return audio,record
     directory=root/'edited-performance-cache';directory.mkdir(exist_ok=True)
-    key=hashlib.sha256((record['audioSha256']+':gaps-v1:mix-v2').encode()).hexdigest()
+    key=hashlib.sha256((record['audioSha256']+f':gaps-v{VERSION}:mix-v{MIX_VERSION}').encode()).hexdigest()
     meta=directory/(key+'.json');edited=directory/(key+'.mp3')
     if meta.is_file() and edited.is_file():
         try:

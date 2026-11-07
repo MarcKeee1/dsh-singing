@@ -9,15 +9,21 @@ def check(config_path,full=False):
         checks['config']=True
         done=subprocess.run([FFMPEG,'-version'],capture_output=True,timeout=10,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0));checks['ffmpeg']=done.returncode==0
         checks['python311']=sys.version_info[:2]==(3,11)
-        missing=[name for name in ['torch','torchaudio','demucs','transformers','librosa','soundfile','opencc','yaml','filelock','torchvision'] if importlib.util.find_spec(name) is None]
+        modules=['torch','torchaudio','demucs','transformers','librosa','soundfile','opencc','yaml','filelock','torchvision']
+        missing=[name for name in modules if importlib.util.find_spec(name) is None]
         checks['dependencies']=not missing
         if missing:details.append({'missingModules':missing})
+        if CONFIG.get('autoSoloGuard',True):
+            solo_python=str(CONFIG.get('soloPython') or sys.executable)
+            solo_probe=subprocess.run([solo_python,'-c','import sherpa_onnx'],capture_output=True,timeout=30,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+            checks['soloEnvironment']=solo_probe.returncode==0
+            if not checks['soloEnvironment']:details.append({'soloEnvironment':'Missing sherpa-onnx; rerun scripts/setup.py or configure soloPython'})
         checks['leadEnvironment']=CONFIG['leadPython'].is_file()
         if checks['leadEnvironment']:
             probe=subprocess.run([str(CONFIG['leadPython']),'-c','import audio_separator,onnxruntime,onnx,onnx2torch,torchvision'],capture_output=True,timeout=45,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
             checks['leadEnvironment']=probe.returncode==0
         if not checks['leadEnvironment']:details.append({'leadEnvironment':'Missing or incomplete; rerun scripts/setup.py'})
-        manifest=json.loads((PROJECT/'models.lock.json').read_text())
+        manifest=[entry for entry in json.loads((PROJECT/'models.lock.json').read_text()) if CONFIG.get('autoSoloGuard',True) or entry.get('feature')!='soloGuard']
         absent=[entry['filename'] for entry in manifest if not model_path(MODELS,entry).is_file() or model_path(MODELS,entry).stat().st_size!=entry['bytes']]
         checks['models']=not absent
         if absent:details.append({'missingOrIncompleteModels':absent})

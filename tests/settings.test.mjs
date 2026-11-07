@@ -8,9 +8,9 @@ test('plugin durations affect defaults, but never explicit durations or full son
  assert.equal(validate({song:'test',start_seconds:30},config).duration,null);
 });
 test('plugin settings reject invalid values and forward only supported controls',()=>{
- for(const options of [{voiceGain:NaN},{musicGain:0},{harmonyGain:-1},{autoOctave:'false'},{referenceAudio:'relative.wav'},{excerptSeconds:0}])assert.throws(()=>locations(options));
- const config=locations({autoOctave:false,musicGain:.4,untrustedValue:'ignored'});
- assert.deepEqual(config.settings,{autoOctave:false,musicGain:.4});
+ for(const options of [{voiceGain:NaN},{musicGain:0},{harmonyGain:-1},{autoOctave:'false'},{autoSoloGuard:'false'},{referenceAudio:'relative.wav'},{excerptSeconds:0}])assert.throws(()=>locations(options));
+ const config=locations({autoOctave:false,autoSoloGuard:false,musicGain:.4,untrustedValue:'ignored'});
+ assert.deepEqual(config.settings,{autoOctave:false,autoSoloGuard:false,musicGain:.4});
 });
 test('settings reach the Python worker without shell arguments or rewriting backend files',async()=>{
  const config=locations({autoOctave:false,shortenGaps:false,voiceGain:1.4});let captured;

@@ -32,3 +32,5 @@ Seed-VC 固定提交：`51383efd921027683c89e5348211d93ff12ac2a8`。修改仅涉
 ## 0.3.0 和声分离
 
 使用 [python-audio-separator](https://github.com/nomadkaraoke/python-audio-separator) 0.30.2（MIT）和 [UVR 模型发布库](https://github.com/TRvlvr/model_repo/releases/tag/all_public_uvr_models) 的 `UVR_MDXNET_KARA_2.onnx`。安装器核对权重 SHA-256；运行时使用与该哈希对应的固定参数，不下载可变模型列表。包装层修正该版本 soundfile 写入的目录及声道布局，不修改上游包。依赖与模型遵循各自上游条款，权重不随本包分发。
+
+SenseVoice INT8 用于本地歌词时间落点，来源为 [k2-fsa/sherpa-onnx 官方导出模型说明](https://k2-fsa.github.io/sherpa/onnx/sense-voice/pretrained.html) 和 [固定 revision 的模型库](https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/tree/2365baeacb507f821a0c8120fcee3d484dba7a07)。模型及其 LICENSE 仅由安装器下载，不捆绑在源码或插件包中。推理接口为 Apache-2.0 许可的 [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)；SenseVoice 自身许可仍按其随附声明执行。

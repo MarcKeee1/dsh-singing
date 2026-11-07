@@ -41,6 +41,16 @@ def main(args):
             from lead_vocal import prepare
             vocals,lead_info=prepare(ROOT,stems/'vocals.wav',job/'lead',CODE_DIR)
             status['leadVocal']=lead_info
+        with phase('soloAnalysis'):
+            from solo_guard import prepare as prepare_solo
+            try:
+                status['soloProcessing']=prepare_solo(job,ROOT,CODE_DIR) if runtime.CONFIG.get('autoSoloGuard',True) else {'version':1,'status':'disabled','mainPreserved':True}
+            except Exception as error:
+                # An uncertain optional detector must not invent cuts or stop
+                # a song whose normal conversion and pitch QA can still run.
+                plan=job/'solo-plan.json'
+                if plan.exists():plan.rename(job/('solo-plan.disabled-'+str(time.time_ns())+'.json'))
+                status['soloProcessing']={'version':1,'status':'unavailable','mainPreserved':True,'errorType':type(error).__name__}
         with phase('vocalValidation'):
             if np.sqrt(np.mean(sf.read(vocals,always_2d=True)[0]**2))<.001:raise ValueError('This excerpt contains too little singing')
         with phase('harmonyPreparation'):

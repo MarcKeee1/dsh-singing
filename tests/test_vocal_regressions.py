@@ -1,8 +1,10 @@
+from unittest.mock import patch
 import unittest,tempfile,pathlib,json,hashlib,sys,numpy as np
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]/'python'))
 from song_position import request_position,PositionError
 from performance_library import find_performance
 from harmony_vocal import mix
+import harmony_vocal
 
 class PositionAndCache(unittest.TestCase):
  def test_null_occurrence_is_omitted_but_bad_values_still_rejected(self):
@@ -25,18 +27,20 @@ class PositionAndCache(unittest.TestCase):
    self.assertIsNone(find_performance(root,q,'voice'))
    self.assertIsNone(find_performance(root,{**q,'artist':'Other'},'voice'))
 class HarmonyMix(unittest.TestCase):
+ def setUp(self):
+  patcher=patch.object(harmony_vocal,'HARMONY_GAIN',.8);patcher.start();self.addCleanup(patcher.stop)
  def test_harmony_finishes_after_main_without_moving_time_or_adding_raw_voice(self):
-  sr=1000;n=4000;t=np.arange(n)/sr
-  lead=(.1*np.sin(2*np.pi*200*t))[:,None];lead[2000:]=0
-  harmonic=(.08*np.sin(2*np.pi*150*t))[:,None];harmonic[:1500]=0;harmonic[3500:]=0
+  sr=8000;n=4*sr;t=np.arange(n)/sr
+  lead=(.1*np.sin(2*np.pi*200*t))[:,None];lead[2*sr:]=0
+  harmonic=(.08*np.sin(2*np.pi*150*t))[:,None];harmonic[:int(1.5*sr)]=0;harmonic[int(3.5*sr):]=0
   music=np.zeros((n,2));mixed,info=mix(lead,music,lead,sr,harmonic,harmonic)
   self.assertEqual(mixed.shape,music.shape)
-  self.assertGreater(float(np.sqrt(np.mean(mixed[2200:3300]**2))),.01)
-  self.assertLess(float(np.max(np.abs(mixed[3500:]))),1e-9)
+  self.assertGreater(float(np.sqrt(np.mean(mixed[int(2.2*sr):int(3.3*sr)]**2))),.01)
+  self.assertLess(float(np.max(np.abs(mixed[int(3.8*sr):]))),1e-9)
   self.assertEqual(info['harmonyVersion'],1)
   silent,_=mix(lead,music,lead,sr,harmonic,np.zeros_like(harmonic))
-  self.assertLess(float(np.max(np.abs(silent[2200:3300]))),1e-9)
+  self.assertLess(float(np.max(np.abs(silent[int(2.2*sr):int(3.3*sr)]))),1e-9)
  def test_misaligned_tracks_are_rejected(self):
-  audio=np.ones((1000,1))*.1
-  with self.assertRaises(ValueError):mix(audio,audio,audio,1000,audio,audio[:500])
+  audio=np.ones((8000,1))*.1
+  with self.assertRaises(ValueError):mix(audio,audio,audio,8000,audio,audio[:4000])
 if __name__=='__main__':unittest.main()
