@@ -1,5 +1,14 @@
 # 更新记录 / Changelog
 
+## 0.3.5 — Automatic solo cleanup / 自动主唱净化
+
+- 新歌自动结合音高、停顿与本地歌词时间落点处理有把握的同音高重入残音，并抑制原主唱静音处的额外出声；正常长音、重复唱词、识别不足的候选保留。
+- 增加插件页 `autoSoloGuard` 开关、源音频绑定的分析缓存和明确状态；关闭时不运行检测，不应用已有计划。
+- 主唱轻度去闷与清晰度 EQ，不移调、不变速；独立和声默认静音，明确配置仍可启用。
+- 安装器补齐固定版本的 SenseVoice INT8 文件与 `sherpa-onnx`；路径从后端配置读取，支持独立 `soloPython`，健康检查验证对应依赖。
+- 既有歌单音频不自动覆盖，不发布私人参考声线、歌词、歌曲、手工修正规则或聊天资料。
+- Automatic conservative solo masks, CPU anchor recognition, portable setup and an explicit native toggle; retain uncertain phrases and existing recordings.
+
 ## 0.3.4 — Verified lyric timeline / 副歌歌词时间轴对齐
 
 - 选定音轨缺少歌词时间轴时，查询同歌名、同歌手的网易云原版参考；在实际音频的三个不同位置校验录音和稳定时间差后，才映射歌词时间轴，保留用户选定的音轨。

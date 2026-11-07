@@ -13,3 +13,4 @@ torch-stoi==0.2.3
 opencc-python-reimplemented==0.1.7
 qrcode==8.2
 pycryptodome==3.23.0
+sherpa-onnx==2.0.1

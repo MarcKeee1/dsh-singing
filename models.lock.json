@@ -150,5 +150,35 @@
     "sha256": "bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4",
     "bytes": 52786726,
     "url": "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/UVR_MDXNET_KARA_2.onnx"
+  },
+  {
+    "repo": "csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
+    "revision": "2365baeacb507f821a0c8120fcee3d484dba7a07",
+    "filename": "model.int8.onnx",
+    "relativePath": "sensevoice/model.int8.onnx",
+    "feature": "soloGuard",
+    "sha256": "c71f0ce00bec95b07744e116345e33d8cbbe08cef896382cf907bf4b51a2cd51",
+    "bytes": 239233841,
+    "url": "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/2365baeacb507f821a0c8120fcee3d484dba7a07/model.int8.onnx"
+  },
+  {
+    "repo": "csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
+    "revision": "2365baeacb507f821a0c8120fcee3d484dba7a07",
+    "filename": "tokens.txt",
+    "relativePath": "sensevoice/tokens.txt",
+    "feature": "soloGuard",
+    "sha256": "f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc",
+    "bytes": 315894,
+    "url": "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/2365baeacb507f821a0c8120fcee3d484dba7a07/tokens.txt"
+  },
+  {
+    "repo": "csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
+    "revision": "2365baeacb507f821a0c8120fcee3d484dba7a07",
+    "filename": "LICENSE",
+    "relativePath": "sensevoice/LICENSE",
+    "feature": "soloGuard",
+    "sha256": "221c6df10b0931a5629adad671ea48fb7747e034c414b6d2bfa275bc3dd4ea17",
+    "bytes": 71,
+    "url": "https://huggingface.co/csukuangfj/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/resolve/2365baeacb507f821a0c8120fcee3d484dba7a07/LICENSE"
   }
 ]

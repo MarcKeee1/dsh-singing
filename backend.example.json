@@ -7,5 +7,7 @@
   "ffmpeg": "ffmpeg",
   "allowedSourceRoots": [],
   "comfyUrl": "",
-  "unloadComfy": false
+  "unloadComfy": false,
+  "autoSoloGuard": true,
+  "harmonyGain": 0
 }

@@ -1,10 +1,18 @@
-# dsh-singing 0.3.2
+# dsh-singing 0.3.5
 
 [简体中文](README.md) · [Changelog](CHANGELOG.md) · [Downloads](https://github.com/MarcKeee1/dsh-singing/releases/latest)
 
 A standalone local singing plugin for DeepSeek Harness. Request a song by title and performer, or provide a Bilibili link, and sing it using a reference voice you configure. Choose the whole song, its chorus, a timestamp, or an opening lyric.
 
 The plugin contains no persona, private conversations, QQ account, API credentials, or preset character voice. It performs voice conversion along the source recording's melody; it does not read lyrics through speech synthesis.
+
+## 0.3.5: automatic solo cleanup
+
+New songs conservatively detect same-note vocal re-entries without a new lyric anchor, and suppress converter-added sound during true source silence. Held notes, recognized repeated words and uncertain candidates are preserved. This is not a guarantee of perfect lead/backing separation for every song.
+
+The native settings page exposes `autoSoloGuard`. Backing-vocal gain defaults to zero; users can raise it explicitly. Existing selected recordings are not rewritten. Gentle vocal clarity EQ preserves pitch and timing.
+
+Rerun `scripts/setup.py` with Python 3.11 after upgrading to install `sherpa-onnx` and the checksum-pinned SenseVoice INT8 model (about 239 MB). Analysis runs on CPU without paid APIs or additional GPU conversion passes. The optional backend `soloPython` setting selects an interpreter with these dependencies; by default the backend interpreter is used.
 
 ## Plugin settings
 
